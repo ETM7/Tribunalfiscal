@@ -1,0 +1,31 @@
+{
+  "name": "tribunal-fiscal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 43128",
+    "build": "next build",
+    "start": "next start --port 43128",
+    "lint": "eslint",
+    "test": "tsx --test src/lib/*.test.ts"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "next": "16.3.8",
+    "pngjs": "^7.0.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pngjs": "^6.0.5",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.8",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #1c1915;
+  --muted: #5c564c;
+  --paper: #fffdf8;
+  --wash: #f3eee4;
+  --line: #e2d9cb;
+  --seal: #8c2f2f;
+  --background: #f6f1e8;
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-source-sans);
+  --font-serif: var(--font-source-serif);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-source-sans), "Source Sans 3", sans-serif;
+}
+
+.font-serif {
+  font-family: var(--font-source-serif), "Source Serif 4", serif;
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: white;
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  color: var(--ink);
+}
+
+.field:disabled {
+  background: #e4dccf;
+  color: #8a8174;
+  cursor: not-allowed;
+}
+
+.field:focus {
+  outline: 2px solid var(--seal);
+  outline-offset: 1px;
+}
+
+.primary,
+.secondary,
+.history {
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  font-weight: 650;
+}
+
+.primary {
+  background: var(--ink);
+  color: white;
+}
+
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.6;
+}
+
+.secondary {
+  border: 1px solid var(--ink);
+  background: white;
+  color: var(--ink);
+}
+
+.history {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--wash);
+  padding: 0.75rem 0.8rem;
+  text-align: left;
+  font-weight: 500;
+  border-radius: 0.9rem;
+}
+
+.history:hover,
+.secondary:hover,
+.primary:hover {
+  border-color: var(--seal);
+}
+
+a {
+  color: var(--seal);
+  text-underline-offset: 2px;
+}
+
+.resumen-pdf > summary {
+  display: inline-block;
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  padding: 0.7rem 1rem;
+  font-weight: 650;
+  background: white;
+}
+
+.resumen-pdf > summary::-webkit-details-marker {
+  display: none;
+}
+
+.resumen-pdf[open] > summary {
+  border-color: var(--seal);
+}
+
+.resumen-cuerpo {
+  margin-top: 1rem;
+  text-align: justify;
+  line-height: 1.7;
+}
