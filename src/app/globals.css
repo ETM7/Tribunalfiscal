@@ -960,6 +960,10 @@ a.btn-primario {
 }
 
 .medidor .cifra {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   font: 300 2.6rem/1 var(--serif);
 }
 
