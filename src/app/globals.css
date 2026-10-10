@@ -980,17 +980,13 @@ a.btn-primario {
   border-radius: 999px;
   background: #e4dccf;
   overflow: hidden;
-  display: flex;
-  gap: 2px;
 }
 
-.barra-cupo i {
-  flex: 1;
-  background: #e4dccf;
-}
-
-.barra-cupo i.u {
+.barra-cupo > span {
+  display: block;
+  height: 100%;
   background: var(--sello);
+  border-radius: inherit;
 }
 
 .medidor .renueva {

@@ -1,6 +1,6 @@
 import { changePasswordAction, loginAction, registerAction, requestPlanAction } from "@/app/portal/actions";
 import { currentUser } from "@/lib/session";
-import { PLAN_ORDER, PLANS, priceLabel, type Plan } from "@/lib/plans";
+import { limaMonthName, limaRenewalLabel, PLAN_ORDER, PLANS, priceLabel, usageThisMonth, type Plan } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
@@ -44,11 +44,10 @@ export default async function PortalPage({ searchParams }: PortalProps) {
                 {plan.summary}
               </p>
             </div>
-            <Cupo used={user.rtfOpens} limit={plan.rtfLimit} />
+            <Cupo used={usageThisMonth(user)} limit={plan.rtfLimit} />
           </div>
           <p className="regla-cupo">
-            Cada resolución distinta cuenta una vez. Volver a abrirla no gasta otra. El mes se cuenta en
-            hora de Lima.
+            Cada resolución distinta cuenta una vez al mes. Volver a abrir la misma no descuenta otra.
           </p>
           {user.pendingPlan ? (
             <div className="pendiente">
@@ -195,35 +194,48 @@ export default async function PortalPage({ searchParams }: PortalProps) {
 }
 
 function Cupo({ used, limit }: { used: number; limit: Plan["rtfLimit"] }) {
+  const month = limaMonthName();
+  const renewal = limaRenewalLabel();
+
   if (limit === null) {
     return (
       <div className="medidor">
         <div className="cifra">
           {used}
-          <small>este mes</small>
+          <small>lecturas</small>
         </div>
-        <p className="lbl">consultas al RTF editable · sin límite</p>
+        <p className="lbl">usadas en {month}</p>
+        <p className="renueva">Este plan no tiene tope. Se sigue contando el mes, sin descontar un paquete.</p>
       </div>
     );
   }
 
   const remaining = Math.max(0, limit - used);
-  const ticks = limit === 0 ? 1 : Math.min(limit, 24);
-  const filled = limit === 0 ? 0 : Math.round((Math.min(used, limit) / limit) * ticks);
+  const ratio = limit === 0 ? 0 : Math.min(used, limit) / limit;
+  const width = `${Math.round(ratio * 100)}%`;
 
   return (
     <div className="medidor">
       <div className="cifra">
         {used}
-        <small>de {limit}</small>
+        <small>de {limit} lecturas</small>
       </div>
-      <p className="lbl">consultas al RTF editable este mes</p>
-      <div className="barra-cupo" aria-hidden="true">
-        {Array.from({ length: ticks }, (_, index) => (
-          <i key={index} className={index < filled ? "u" : undefined} />
-        ))}
+      <p className="lbl">usadas en {month}</p>
+      <div
+        className="barra-cupo"
+        role="meter"
+        aria-valuemin={0}
+        aria-valuemax={limit}
+        aria-valuenow={Math.min(used, limit)}
+        aria-label={`${used} de ${limit} lecturas usadas en ${month}`}
+      >
+        <span style={{ width }} />
       </div>
-      <p className="renueva">Te quedan {remaining}. El mes se cuenta en hora de Lima.</p>
+      <p className="renueva">
+        {limit === 0
+          ? "Este plan no incluye lecturas del RTF editable."
+          : `Se renueva el ${renewal} a medianoche, hora de Lima. Te quedan ${remaining}.`}
+      </p>
     </div>
   );
 }

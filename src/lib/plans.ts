@@ -59,6 +59,21 @@ export function limaMonth(now = new Date()): string {
   }).format(now);
 }
 
+export function limaMonthName(now = new Date()): string {
+  const name = new Intl.DateTimeFormat("es-PE", {
+    timeZone: "America/Lima",
+    month: "long",
+  }).format(now);
+  return name.toLocaleLowerCase("es-PE");
+}
+
+/** Primer día del mes siguiente en Lima, como «1/11». */
+export function limaRenewalLabel(now = new Date()): string {
+  const month = Number(limaMonth(now).slice(5, 7));
+  const next = month === 12 ? 1 : month + 1;
+  return `1/${next}`;
+}
+
 export function usageThisMonth(user: { usageMonth: string; rtfOpens: number }, now = new Date()): number {
   return user.usageMonth === limaMonth(now) ? user.rtfOpens : 0;
 }

@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { describeRtf, limaMonth, planRequestNotice, PLANS, priceLabel, rtfQuota } from "./plans";
+import { describeRtf, limaMonth, limaMonthName, limaRenewalLabel, planRequestNotice, PLANS, priceLabel, rtfQuota } from "./plans";
 
 test("el mes de Lima cambia a las 00:00, cinco horas antes que UTC", () => {
   assert.equal(limaMonth(new Date("2026-01-01T04:30:00Z")), "2025-12");
   assert.equal(limaMonth(new Date("2026-01-01T05:30:00Z")), "2026-01");
+  assert.equal(limaMonthName(new Date("2026-10-10T15:00:00Z")), "octubre");
+  assert.equal(limaRenewalLabel(new Date("2026-10-10T15:00:00Z")), "1/11");
+  assert.equal(limaRenewalLabel(new Date("2026-01-01T04:30:00Z")), "1/1");
+  assert.equal(limaRenewalLabel(new Date("2026-12-15T15:00:00Z")), "1/1");
 });
 
 test("los precios y los cupos del RTF son los del plan", () => {
