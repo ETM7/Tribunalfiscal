@@ -40,6 +40,7 @@ export type PublicUser = {
   pendingPlan: PlanId | null;
   usageMonth: string;
   rtfOpens: number;
+  openedIds: string[];
   createdAt: string;
 };
 
@@ -126,6 +127,7 @@ function toPublic(user: StoredUser, now = new Date()): PublicUser {
     pendingPlan: user.pendingPlan,
     usageMonth: month,
     rtfOpens: user.usageMonth === month ? user.openedIds.length : 0,
+    openedIds: user.usageMonth === month ? [...user.openedIds] : [],
     createdAt: user.createdAt,
   };
 }

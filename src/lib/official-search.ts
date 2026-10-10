@@ -1,16 +1,24 @@
 import { decodeOfficialHtml, readSearchPage, readSumilla } from "@/lib/html-reader";
+import { previewResolution } from "@/lib/pdf-text";
 import {
   buildSearchUrl,
   fichaUrl,
   nextOffset,
+  pdfFileUrl,
   sumillaPageUrl,
   type SearchQuery,
 } from "@/lib/search-query";
+import { salaFromId } from "@/lib/text-search";
 
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 const TIMEOUT_MS = 20_000;
 const MAX_BYTES = 1_500_000;
+const PDF_MAX_BYTES = 12_000_000;
+const PREVIEW_TTL_MS = 30 * 60 * 1000;
+const previewCache = new Map<string, { at: number; value: ResolutionPreview }>();
+
+type ResolutionPreview = { date: string | null; phrasePages: number[] };
 
 export type ListedResolution = {
   id: string;
@@ -19,6 +27,9 @@ export type ListedResolution = {
   sumillaTitle: string | null;
   sumillaText: string | null;
   sumillaUrl: string | null;
+  date: string | null;
+  sala: string | null;
+  phrasePages: number[];
 };
 
 export type SearchSuccess = {
@@ -112,8 +123,14 @@ async function searchOnce(query: SearchQuery, count: number, officialUrl: string
       sumillaTitle,
       sumillaText,
       sumillaUrl,
+      date: null,
+      sala: salaFromId(row.id),
+      phrasePages: [],
     });
   }
+
+  const enriched = await mapLimit(results, 2, (item) => attachPreview(item, query));
+  results.splice(0, results.length, ...enriched);
 
   const to = parsed.to || count + results.length;
   return {
@@ -128,6 +145,85 @@ async function searchOnce(query: SearchQuery, count: number, officialUrl: string
     extraRows: parsed.extraRows,
     results,
   };
+}
+
+async function attachPreview(item: ListedResolution, query: SearchQuery): Promise<ListedResolution> {
+  if (!item.pdfPath || !pdfFileUrl(item.pdfPath)) return item;
+  const started = Date.now();
+  try {
+    const preview = await withTimeout(loadPreview(item.pdfPath, query), 25_000);
+    console.info(
+      `[preview] ${item.id} ${Date.now() - started}ms fecha=${preview.date ?? "-"} págs=${preview.phrasePages.join(",") || "-"}`,
+    );
+    return { ...item, date: preview.date, phrasePages: preview.phrasePages };
+  } catch (error) {
+    console.info(`[preview] ${item.id} ${error instanceof Error ? error.message : "error"}`);
+    return item;
+  }
+}
+
+async function loadPreview(pdfPath: string, query: SearchQuery): Promise<ResolutionPreview> {
+  const key = `${pdfPath}\n${query.exacta}\n${query.todas}\n${query.cerca}`;
+  const cached = previewCache.get(key);
+  if (cached && Date.now() - cached.at < PREVIEW_TTL_MS) return cached.value;
+  const value = await previewResolution(await downloadOfficialPdf(pdfPath), {
+    exacta: query.exacta,
+    todas: query.todas,
+    cerca: query.cerca,
+  });
+  if (value.date || value.phrasePages.length > 0) {
+    previewCache.set(key, { at: Date.now(), value });
+    if (previewCache.size > 40) {
+      const oldest = [...previewCache.entries()].sort((left, right) => left[1].at - right[1].at)[0];
+      if (oldest) previewCache.delete(oldest[0]);
+    }
+  }
+  return value;
+}
+
+async function downloadOfficialPdf(pdfPath: string): Promise<Uint8Array> {
+  const url = pdfFileUrl(pdfPath);
+  if (!url) throw new Error("pdf");
+  const response = await fetch(url, {
+    cache: "no-store",
+    redirect: "follow",
+    signal: AbortSignal.timeout(12_000),
+    headers: { Accept: "application/pdf", "User-Agent": USER_AGENT },
+  });
+  const finalUrl = new URL(response.url);
+  if (finalUrl.protocol !== "http:" && finalUrl.protocol !== "https:") throw new Error("host");
+  if (finalUrl.hostname !== "www.mef.gob.pe") throw new Error("host");
+  if (!finalUrl.pathname.startsWith("/contenidos/tribu_fisc/Tribunal_Fiscal/PDFS/")) throw new Error("host");
+  if (!response.ok) throw new Error("http");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength > PDF_MAX_BYTES) throw new Error("size");
+  if (!new TextDecoder().decode(bytes.slice(0, 5)).startsWith("%PDF")) throw new Error("pdf");
+  return bytes;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  void promise.catch(() => undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  const runNext = async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      out[index] = await worker(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, () => runNext()));
+  return out;
 }
 
 type FetchedHtml = { html: string; cookie: string };

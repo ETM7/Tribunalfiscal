@@ -10,6 +10,7 @@ import {
   todayInLima,
   type SearchQuery,
 } from "@/lib/search-query";
+import { salaFromId } from "@/lib/text-search";
 
 const HISTORY_KEY = "tf-jurisprudencia:v1";
 const HISTORY_LIMIT = 8;
@@ -95,10 +96,12 @@ function advancedFilled(query: Pick<SearchQuery, "todas" | "sin" | "cerca" | "fi
 
 export function SearchApp({
   rtf,
+  openedIds = [],
   initialQuery = "",
   initialState = initialSearchState,
 }: {
   rtf: RtfAccess;
+  openedIds?: string[];
   initialQuery?: string;
   initialState?: ActionState;
 }) {
@@ -317,7 +320,7 @@ export function SearchApp({
           <section aria-live="polite">
             {pending ? (
               <p className="aviso" style={{ marginTop: "1.25rem" }}>
-                Una búsqueda a la vez. Leyendo la página pedida y, después, la sumilla de cada resultado.
+                Una búsqueda a la vez. Leyendo la sumilla y, en el PDF, la fecha y las páginas de la frase.
               </p>
             ) : null}
             {!pending && state.status === "error" && !reopened ? (
@@ -330,6 +333,7 @@ export function SearchApp({
                 formAction={formAction}
                 onPaging={() => setReopened(null)}
                 rtf={rtf}
+                openedIds={openedIds}
               />
             ) : null}
           </section>
@@ -378,12 +382,14 @@ function Results({
   formAction,
   onPaging,
   rtf,
+  openedIds,
 }: {
   view: { query: SearchQuery; result: SearchSuccess; saved: boolean };
   pending: boolean;
   formAction: (payload: FormData) => void;
   onPaging: () => void;
   rtf: RtfAccess;
+  openedIds: string[];
 }) {
   const { query, result, saved } = view;
   const range =
@@ -441,6 +447,7 @@ function Results({
                   <span className="exp">
                     EXPEDIENTE: <b>{item.id}</b>
                   </span>
+                  <ResultWhen item={item} />
                 </div>
                 {item.fichaUrl ? (
                   <a className="btn btn-secundario btn-chico" href={item.fichaUrl} target="_blank" rel="noreferrer">
@@ -469,7 +476,7 @@ function Results({
                   </>
                 )}
               </div>
-              <PdfTranscript item={item} query={query} rtf={rtf} />
+              <PdfTranscript item={item} query={query} rtf={rtf} opened={openedIds.includes(item.id)} />
             </article>
           ))}
         </div>
@@ -504,39 +511,79 @@ function Results({
   );
 }
 
+function ResultWhen({ item }: { item: SearchSuccess["results"][number] }) {
+  const sala = item.sala || salaFromId(item.id);
+  const line = [item.date, sala].filter(Boolean).join(" · ");
+  if (!line) return null;
+  return <div className="f-cuando">{line}</div>;
+}
+
 function PdfTranscript({
   item,
   query,
   rtf,
+  opened,
 }: {
   item: SearchSuccess["results"][number];
   query: SearchQuery;
   rtf: RtfAccess;
+  opened: boolean;
 }) {
   if (!item.pdfPath) return null;
   const href = lecturaHref(item, query);
+  const pages = phrasePagesOf(item);
+  const target = pages.length > 0 ? `${href}#p-${pages[0]}` : href;
 
   return (
     <div className="f-pie">
+      {pages.length > 0 ? (
+        <p className="f-paginas">
+          <span>Tu frase está en pág.</span>
+          {pages.map((page) =>
+            rtf.allowed ? (
+              <a key={page} className="pgn" href={`${href}#p-${page}`}>
+                {page}
+              </a>
+            ) : (
+              <span key={page} className="pgn">
+                {page}
+              </span>
+            ),
+          )}
+        </p>
+      ) : null}
       {rtf.allowed ? (
-        <a className="btn btn-secundario btn-chico" href={href} target="_blank" rel="noreferrer">
-          Abrir RTF editable
+        <a className="btn btn-secundario btn-chico" href={target}>
+          Ir al criterio
         </a>
       ) : (
         <span className="btn-bloq" aria-disabled="true">
-          Abrir RTF editable
+          Ir al criterio
         </span>
       )}
-      {rtf.allowed && rtf.remaining !== null ? (
-        <p className="f-msg">Te quedan {rtf.remaining} consultas al RTF editable este mes.</p>
-      ) : null}
-      {!rtf.allowed ? (
-        <p className="f-msg">
-          {rtf.note} <a href="/portal">Ir al portal</a>
-        </p>
-      ) : null}
+      <p className="f-msg">
+        <QuotaLine rtf={rtf} opened={opened} />
+      </p>
     </div>
   );
+}
+
+function QuotaLine({ rtf, opened }: { rtf: RtfAccess; opened: boolean }) {
+  if (!rtf.allowed) {
+    return (
+      <>
+        {rtf.note} <a href="/portal">Ir al portal</a>
+      </>
+    );
+  }
+  if (opened) return <>Ya la abriste este mes. No descuenta otra lectura.</>;
+  if (rtf.remaining !== null) return <>Te quedan {rtf.remaining} lecturas este mes.</>;
+  return <>No descuenta lecturas.</>;
+}
+
+function phrasePagesOf(item: { phrasePages?: number[] }): number[] {
+  if (!Array.isArray(item.phrasePages)) return [];
+  return item.phrasePages.filter((page) => Number.isInteger(page) && page > 0);
 }
 
 function lecturaHref(item: SearchSuccess["results"][number], query: SearchQuery): string {

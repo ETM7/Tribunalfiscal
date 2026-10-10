@@ -15,12 +15,13 @@ import {
   type OcrLine,
   type VerticalSpan,
 } from "@/lib/pdf-layout";
-import { foldForSearch } from "@/lib/text-search";
+import { foldForSearch, parseResolutionDate } from "@/lib/text-search";
 
-export { foldForSearch, foldWithMap, phraseSpans } from "@/lib/text-search";
+export { foldForSearch, foldWithMap, parseResolutionDate, phraseSpans, salaFromId } from "@/lib/text-search";
 export type { TextSpan } from "@/lib/text-search";
 
 const MAX_PAGES = 20;
+const PREVIEW_PAGES = 8;
 
 export type PdfBlock =
   | { type: "p"; text: string }
@@ -80,6 +81,95 @@ export function splitHighlighted(text: string, terms: string[]): TextPiece[] {
   }
   if (last < text.length) pieces.push({ text: text.slice(last), hit: false });
   return pieces.length > 0 ? pieces : [{ text, hit: false }];
+}
+
+/** Páginas de la frase exacta; si no hay frase, de las palabras pedidas. */
+export function previewPhrasePages(
+  pages: PdfPage[],
+  criteria: { exacta: string; todas: string; cerca: string },
+): number[] {
+  const hits = locateCriteria(pages, criteria);
+  if (criteria.exacta.trim() || criteria.todas.trim() || criteria.cerca.trim()) return hits[0]?.pages ?? [];
+  return [];
+}
+
+/**
+ * Fecha y páginas de la frase, sin el OCR completo de la lectura.
+ * Si el PDF está escaneado, lee como mucho las primeras páginas a 100 ppp.
+ */
+export async function previewResolution(
+  bytes: Uint8Array,
+  criteria: { exacta: string; todas: string; cerca: string },
+): Promise<{ date: string | null; phrasePages: number[] }> {
+  const empty = { date: null, phrasePages: [] as number[] };
+  const dir = await mkdtemp(path.join(tmpdir(), "rtf-prev-"));
+  try {
+    const pdfPath = path.join(dir, "doc.pdf");
+    await writeFile(pdfPath, bytes);
+    const pages = await previewPages(dir, pdfPath);
+    if (pages.length === 0) return empty;
+    const date = parseResolutionDate(pages.slice(0, 2).map((page) => page.text).join("\n"));
+    return { date, phrasePages: previewPhrasePages(pages, criteria) };
+  } catch (error) {
+    if (!isMissingTool(error)) return empty;
+    return empty;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function previewPages(dir: string, pdfPath: string): Promise<PdfPage[]> {
+  const extracted = await run(
+    "pdftotext",
+    ["-enc", "UTF-8", "-f", "1", "-l", String(PREVIEW_PAGES), "-layout", pdfPath, "-"],
+    8_000,
+  );
+  if (extracted.code === 0 && textLayerIsUsable(extracted.stdout.toString("utf8"))) {
+    return pagesFromTextLayer(extracted.stdout.toString("utf8")).slice(0, PREVIEW_PAGES);
+  }
+  const rendered = await run(
+    "pdftoppm",
+    ["-png", "-r", "100", "-l", String(PREVIEW_PAGES), pdfPath, path.join(dir, "v")],
+    12_000,
+  );
+  if (rendered.code !== 0) return [];
+  const images = (await readdir(dir))
+    .filter((name) => /^v-\d+\.png$/.test(name))
+    .sort((a, b) => pageNumber(a) - pageNumber(b));
+  const texts = await mapLimit(images, 4, async (image) => {
+    try {
+      const ocr = await run(
+        "tesseract",
+        [path.join(dir, image), "stdout", "-l", "spa", "--psm", "6"],
+        10_000,
+        { OMP_THREAD_LIMIT: "1" },
+      );
+      return ocr.code === 0 ? ocr.stdout.toString("utf8") : "";
+    } catch {
+      return "";
+    }
+  });
+  return images.map((image, index) => ({
+    page: pageNumber(image),
+    text: texts[index] ?? "",
+    headerImage: null,
+    blocks: [],
+  }));
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let cursor = 0;
+  const runNext = async () => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      out[index] = await worker(items[index]);
+    }
+  };
+  const workers = Math.max(1, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: workers }, () => runNext()));
+  return out;
 }
 
 export function locateCriteria(
@@ -439,10 +529,11 @@ function isMissingTool(error: unknown): boolean {
 function run(
   command: string,
   args: string[],
-  timeoutMs: number
+  timeoutMs: number,
+  extraEnv?: Record<string, string>,
 ): Promise<{ code: number; stdout: Buffer; stderr: Buffer }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args);
+    const child = spawn(command, args, extraEnv ? { env: { ...process.env, ...extraEnv } } : undefined);
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let settled = false;

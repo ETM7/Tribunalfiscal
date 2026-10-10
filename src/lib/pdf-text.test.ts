@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildEditableHtml, buildPdfTranscript, foldForSearch, locateCriteria, pagesFromTextLayer, phraseSpans, searchTerms, splitHighlighted, textLayerIsUsable } from "./pdf-text";
+import { buildEditableHtml, buildPdfTranscript, foldForSearch, locateCriteria, pagesFromTextLayer, phraseSpans, previewPhrasePages, searchTerms, splitHighlighted, textLayerIsUsable } from "./pdf-text";
+import { parseResolutionDate, salaFromId } from "./text-search";
 
 test("la frase admite un número entre Decisión y 578", () => {
   const pages = [
@@ -87,6 +88,28 @@ test("el resaltado amarillo sigue la palabra aunque cambie la tilde y omite no",
     pieces.filter((piece) => piece.hit).map((piece) => piece.text),
     ["Domiciliados", "Decisión", "578"]
   );
+});
+
+test("la fecha está junto a la palabra fecha y la sala sale del expediente", () => {
+  const header = "FECHA. Uma, 3 de diciembre de 2019\nVISTA la apelación del 31 de octubre de 2018";
+  assert.equal(parseResolutionDate(header), "03/12/2019");
+  assert.equal(parseResolutionDate("Fecha: Lima, 23 de mayo de 2017"), "23/05/2017");
+  assert.equal(parseResolutionDate("FECHA Lima, 3 de setiembre del 2018"), "03/09/2018");
+  assert.equal(parseResolutionDate("VISTA el 31 de octubre de 2018"), null);
+  assert.equal(salaFromId("2017_1_04481"), "Sala 1");
+  assert.equal(salaFromId("2025_Q_04131"), "Sala Q");
+  assert.equal(salaFromId("/2026_13_08270"), "Sala 13");
+  assert.equal(salaFromId("no-es"), null);
+});
+
+test("las páginas de la ficha siguen la frase exacta", () => {
+  const pages = [
+    { page: 2, text: "no domiciliados, sin la frase", headerImage: null, blocks: [] },
+    { page: 5, text: "la Decisión 578 otra vez", headerImage: null, blocks: [] },
+  ];
+  assert.deepEqual(previewPhrasePages(pages, { exacta: "decisión 578", todas: "domiciliados", cerca: "" }), [5]);
+  assert.deepEqual(previewPhrasePages(pages, { exacta: "no está", todas: "domiciliados", cerca: "" }), []);
+  assert.deepEqual(previewPhrasePages(pages, { exacta: "", todas: "domiciliados", cerca: "" }), [2]);
 });
 
 test("un escaneo sin capa de texto no se toma como texto", () => {

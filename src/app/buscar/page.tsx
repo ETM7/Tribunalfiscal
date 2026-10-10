@@ -25,6 +25,7 @@ export default async function BuscarPage({ searchParams }: { searchParams: Searc
     <SearchApp
       key={phrase || "vacio"}
       rtf={describeRtf(user)}
+      openedIds={user?.openedIds ?? []}
       initialQuery={phrase}
       initialState={initial}
     />
