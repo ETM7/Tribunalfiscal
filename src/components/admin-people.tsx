@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { assignPlanAction, confirmPaymentAction, resetUsageAction } from "@/app/admin/actions";
 import type { PublicUser } from "@/lib/accounts";
-import { PLAN_ORDER, PLANS, priceLabel } from "@/lib/plans";
+import { ASSIGNABLE_PLANS, PLANS, priceLabel } from "@/lib/plans";
 
 export function AdminPeople({ users }: { users: PublicUser[] }) {
   const [query, setQuery] = useState("");
@@ -62,7 +62,7 @@ export function AdminPeople({ users }: { users: PublicUser[] }) {
               <form action={assignPlanAction} className="acc">
                 <input type="hidden" name="userId" value={account.id} />
                 <select name="plan" className="inp" aria-label={`Asignar plan a ${account.name}`} defaultValue={account.pendingPlan ?? account.plan}>
-                  {PLAN_ORDER.map((id) => (
+                  {ASSIGNABLE_PLANS.map((id) => (
                     <option key={id} value={id}>
                       {PLANS[id].name}
                     </option>

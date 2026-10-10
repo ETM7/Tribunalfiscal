@@ -1,6 +1,7 @@
-import { changePasswordAction, loginAction, registerAction, requestPlanAction } from "@/app/portal/actions";
+import { beginStudentAction, changePasswordAction, loginAction, registerAction, requestPlanAction } from "@/app/portal/actions";
+import { readStudentConfirmToken } from "@/lib/accounts";
+import { limaMonthName, limaRenewalLabel, PLAN_ORDER, PLANS, priceLabel, studentIsCurrent, usageThisMonth, type Plan } from "@/lib/plans";
 import { currentUser } from "@/lib/session";
-import { limaMonthName, limaRenewalLabel, PLAN_ORDER, PLANS, priceLabel, usageThisMonth, type Plan } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,9 @@ type PortalProps = {
 export default async function PortalPage({ searchParams }: PortalProps) {
   const params = await searchParams;
   const aviso = first(params.aviso).slice(0, 300);
+  const studentSignup = first(params.alta) === "estudiante";
   const user = await currentUser();
+  const confirmToken = user ? await readStudentConfirmToken(user.id) : null;
   const plan = user ? PLANS[user.plan] : null;
 
   return (
@@ -49,6 +52,7 @@ export default async function PortalPage({ searchParams }: PortalProps) {
           <p className="regla-cupo">
             Cada resolución distinta cuenta una vez al mes. Volver a abrir la misma no descuenta otra.
           </p>
+          <StudentBox userPlan={user.plan} studentUntil={user.studentUntil} token={confirmToken} ask={studentSignup} />
           {user.pendingPlan ? (
             <div className="pendiente">
               <span className="ic" aria-hidden="true">
@@ -89,9 +93,14 @@ export default async function PortalPage({ searchParams }: PortalProps) {
               </button>
             </div>
           </form>
-          <form action={registerAction} className="panel">
-            <h2 className="t2">Crear cuenta Junior</h2>
-            <p className="sub">Es gratis. Puedes buscar enseguida e incluye 3 lecturas del RTF editable al mes.</p>
+          <form id="registro" action={registerAction} className="panel">
+            <h2 className="t2">{studentSignup ? "Regístrate con tu correo de estudiante" : "Crear cuenta Junior"}</h2>
+            <p className="sub">
+              {studentSignup
+                ? "Usa el correo que te dio tu universidad, terminado en edu.pe. Después abres el enlace para confirmarlo. Dura un año."
+                : "Es gratis. Puedes buscar enseguida e incluye 3 lecturas del RTF editable al mes."}
+            </p>
+            {studentSignup ? <input type="hidden" name="estudiante" value="1" /> : null}
             <div className="form-grid">
               <div className="campo">
                 <label htmlFor="reg-nombre">Nombre</label>
@@ -190,6 +199,48 @@ export default async function PortalPage({ searchParams }: PortalProps) {
         </form>
       ) : null}
     </main>
+  );
+}
+
+function StudentBox({
+  userPlan,
+  studentUntil,
+  token,
+  ask,
+}: {
+  userPlan: Plan["id"];
+  studentUntil: string | null;
+  token: string | null;
+  ask: boolean;
+}) {
+  const current = studentIsCurrent(studentUntil);
+  if (!token && userPlan === "estudiante" && current && !ask) return null;
+  if (!token && !ask && userPlan !== "estudiante") return null;
+  return (
+    <div className="aviso" style={{ marginTop: "1rem" }}>
+      {token ? (
+        <p style={{ margin: 0 }}>
+          Abre este enlace para confirmar el correo de estudiante:{" "}
+          <a href={`/confirmar-estudiante?token=${encodeURIComponent(token)}`}>Confirmar mi correo</a>
+        </p>
+      ) : current ? (
+        <p style={{ margin: 0 }}>
+          El beneficio de estudiante está activo hasta el{" "}
+          {new Date(studentUntil || "").toLocaleDateString("es-PE", { timeZone: "America/Lima" })}.
+        </p>
+      ) : (
+        <form action={beginStudentAction}>
+          <p style={{ margin: "0 0 0.7rem" }}>
+            {studentUntil
+              ? "El año de estudiante venció. Si tu correo sigue siendo universitario, genera otro enlace."
+              : "Si tu correo termina en edu.pe, puedes pasar al plan Estudiante: 5 lecturas al mes."}
+          </p>
+          <button type="submit" className="btn btn-primario btn-chico">
+            Generar enlace de confirmación
+          </button>
+        </form>
+      )}
+    </div>
   );
 }
 

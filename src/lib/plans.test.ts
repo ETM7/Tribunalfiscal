@@ -13,6 +13,7 @@ import {
   priceLabel,
   quotaFoot,
   rtfQuota,
+  studentIsCurrent,
 } from "./plans";
 
 test("el mes de Lima cambia a las 00:00, cinco horas antes que UTC", () => {
@@ -37,6 +38,9 @@ test("los precios y los cupos del RTF son los del plan", () => {
   assert.equal(PLANS.socio.priceSoles, 249);
   assert.equal(PLANS.socio.annualPriceSoles, 2490);
   assert.equal(PLANS.socio.rtfLimit, null);
+  assert.equal(PLANS.estudiante.rtfLimit, 5);
+  assert.equal(PLANS.estudiante.name, "Estudiante");
+  assert.equal(quotaFoot(PLANS.estudiante), "al mes, mientras estudies");
   assert.equal(priceLabel(PLANS.junior), "Gratis");
   assert.equal(priceLabel(PLANS.senior), "S/ 39 al mes");
   assert.equal(priceLabel(PLANS.senior, "anual"), "S/ 390 al año");
@@ -66,6 +70,15 @@ test("sin sesión el RTF queda cerrado y Junior tiene tres lecturas", () => {
   assert.equal(junior.remaining, 3);
   const spent = describeRtf({ plan: "junior", usageMonth: "2026-10", rtfOpens: 3 }, new Date("2026-10-05T15:00:00Z"));
   assert.equal(spent.allowed, false);
+  const pending = describeRtf({ plan: "estudiante", usageMonth: "2026-10", rtfOpens: 0, studentUntil: null });
+  assert.equal(pending.allowed, false);
+  const active = describeRtf(
+    { plan: "estudiante", usageMonth: "2026-10", rtfOpens: 1, studentUntil: "2027-10-01T00:00:00.000Z" },
+    new Date("2026-10-05T15:00:00Z"),
+  );
+  assert.equal(active.allowed, true);
+  assert.equal(active.remaining, 4);
+  assert.equal(studentIsCurrent("2020-01-01T00:00:00.000Z", new Date("2026-10-05T15:00:00Z")), false);
 });
 
 test("Senior cuenta el cupo del mes de Lima y Estudio no tiene tope", () => {

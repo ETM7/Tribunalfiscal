@@ -6,12 +6,15 @@ import { describe, test } from "node:test";
 import {
   adminNotePath,
   assignPlan,
+  beginStudentConfirmation,
   confirmPendingPlan,
+  confirmStudentByToken,
   consumeRtf,
   createUser,
   ensureAdmin,
   getUser,
   loginUser,
+  readStudentConfirmToken,
   registerUser,
   requestPlan,
   resetUsage,
@@ -111,6 +114,49 @@ describe("cuentas", { concurrency: false }, () => {
       assert.equal(session.value.plan, "socio");
       const wrong = await loginUser("admin@tribunalfiscal.pe", "no-es-la-clave");
       assert.equal(wrong.ok, false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("el correo universitario confirma cinco lecturas por un año", async () => {
+    const dir = await sandbox();
+    try {
+      const rejected = await registerUser({
+        email: "ana@gmail.com",
+        name: "Ana Gómez",
+        password: "clave-estudiante",
+        student: true,
+      });
+      assert.equal(rejected.ok, false);
+      const created = await registerUser({
+        email: "ana@pucp.edu.pe",
+        name: "Ana Gómez",
+        password: "clave-estudiante",
+        student: true,
+      });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+      assert.equal(created.value.plan, "estudiante");
+      assert.equal(created.value.studentUntil, null);
+      const blocked = await consumeRtf(created.value.id, "2019_5_11125");
+      assert.equal(blocked.ok, false);
+      const token = await readStudentConfirmToken(created.value.id);
+      assert.ok(token);
+      const confirmed = await confirmStudentByToken(token || "");
+      assert.equal(confirmed.ok, true);
+      if (!confirmed.ok) return;
+      assert.ok(confirmed.value.studentUntil);
+      for (let index = 0; index < 5; index += 1) {
+        const opened = await consumeRtf(created.value.id, `2019_5_${index}`);
+        assert.equal(opened.ok, true);
+      }
+      const extra = await consumeRtf(created.value.id, "2019_5_extra");
+      assert.equal(extra.ok, false);
+      const again = await beginStudentConfirmation(created.value.id);
+      assert.equal(again.ok, true);
+      const after = await getUser(created.value.id);
+      assert.equal(after?.studentUntil, null);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -1,6 +1,9 @@
 export const PLAN_ORDER = ["junior", "senior", "gerente", "socio"] as const;
 
-export type PlanId = (typeof PLAN_ORDER)[number];
+export type PlanId = (typeof PLAN_ORDER)[number] | "estudiante";
+
+/** Planes que administración puede asignar. Estudiante no va en la fila de precios. */
+export const ASSIGNABLE_PLANS: PlanId[] = [...PLAN_ORDER, "estudiante"];
 
 export type BillingCycle = "mensual" | "anual";
 
@@ -46,6 +49,14 @@ export const PLANS: Record<PlanId, Plan> = {
     rtfLimit: null,
     summary: "Búsquedas y lecturas del RTF editable sin límite, hasta 5 usuarios.",
   },
+  estudiante: {
+    id: "estudiante",
+    name: "Estudiante",
+    priceSoles: 0,
+    annualPriceSoles: 0,
+    rtfLimit: 5,
+    summary: "5 lecturas al mes, mientras el correo universitario siga confirmado.",
+  },
 };
 
 export type RtfAccess = {
@@ -85,8 +96,14 @@ export function usageThisMonth(user: { usageMonth: string; rtfOpens: number }, n
   return user.usageMonth === limaMonth(now) ? user.rtfOpens : 0;
 }
 
+export function studentIsCurrent(studentUntil: string | null | undefined, now = new Date()): boolean {
+  if (!studentUntil) return false;
+  const until = new Date(studentUntil);
+  return !Number.isNaN(until.getTime()) && until.getTime() > now.getTime();
+}
+
 export function describeRtf(
-  user: { plan: PlanId; usageMonth: string; rtfOpens: number } | null,
+  user: { plan: PlanId; usageMonth: string; rtfOpens: number; studentUntil?: string | null } | null,
   now = new Date(),
 ): RtfAccess {
   if (!user) {
@@ -94,6 +111,16 @@ export function describeRtf(
       allowed: false,
       remaining: null,
       note: "Entra al portal para abrir el RTF editable. El plan Junior es gratis e incluye 3 lecturas al mes.",
+    };
+  }
+
+  if (user.plan === "estudiante" && !studentIsCurrent(user.studentUntil, now)) {
+    return {
+      allowed: false,
+      remaining: 0,
+      note: user.studentUntil
+        ? "El beneficio de estudiante venció. Hay que revalidarlo en el portal."
+        : "Confirma el enlace de tu correo de estudiante para usar las 5 lecturas.",
     };
   }
 
@@ -152,7 +179,14 @@ export function priceLabel(plan: Plan, cycle: BillingCycle = "mensual"): string 
 export function quotaFoot(plan: Plan): string {
   if (plan.id === "gerente") return "1 usuario";
   if (plan.id === "socio") return "hasta 5 usuarios";
+  if (plan.id === "estudiante") return "al mes, mientras estudies";
   return "al mes";
+}
+
+export function plusOneYear(now = new Date()): string {
+  const next = new Date(now.getTime());
+  next.setUTCFullYear(next.getUTCFullYear() + 1);
+  return next.toISOString();
 }
 
 export function rtfQuota(plan: Plan): { amount: string; caption: string; cell: string } {

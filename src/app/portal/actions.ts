@@ -1,8 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { changePassword, loginUser, registerUser, requestPlan } from "@/lib/accounts";
-import { isBillingCycle, isEduPeEmail, planRequestNotice, PLANS } from "@/lib/plans";
+import { beginStudentConfirmation, changePassword, loginUser, registerUser, requestPlan } from "@/lib/accounts";
+import { isBillingCycle, planRequestNotice, PLANS } from "@/lib/plans";
 import { clearSession, currentUser, startSession } from "@/lib/session";
 
 function portalNotice(message: string): never {
@@ -17,13 +17,24 @@ export async function loginAction(formData: FormData): Promise<void> {
 }
 
 export async function registerAction(formData: FormData): Promise<void> {
+  const student = String(formData.get("estudiante") ?? "") === "1";
   const result = await registerUser({
     email: String(formData.get("email") ?? ""),
     name: String(formData.get("nombre") ?? ""),
     password: String(formData.get("password") ?? ""),
+    student,
   });
-  if (!result.ok) portalNotice(result.message);
+  if (!result.ok) {
+    const back = student ? `/portal?alta=estudiante&aviso=${encodeURIComponent(result.message)}#registro` : "";
+    if (back) redirect(back);
+    portalNotice(result.message);
+  }
   await startSession(result.value.id);
+  if (student) {
+    redirect(
+      `/portal?aviso=${encodeURIComponent("Cuenta creada. Abre el enlace de esta página para confirmar el correo de estudiante.")}`,
+    );
+  }
   redirect("/portal");
 }
 
@@ -46,24 +57,12 @@ export async function requestPlanAction(formData: FormData): Promise<void> {
   portalNotice(notice);
 }
 
-export async function validateEduAction(): Promise<void> {
+export async function beginStudentAction(): Promise<void> {
   const user = await currentUser();
-  if (!user) redirect("/portal");
-  if (!isEduPeEmail(user.email)) {
-    redirect(
-      `/precios?aviso=${encodeURIComponent("Ese beneficio es para un correo que termina en edu.pe.")}`,
-    );
-  }
-  if (user.plan !== "junior") {
-    redirect(
-      `/precios?aviso=${encodeURIComponent("Tu plan ya incluye las lecturas de Senior o más.")}`,
-    );
-  }
-  const result = await requestPlan(user.id, "senior", "mensual");
-  if (!result.ok) redirect(`/precios?aviso=${encodeURIComponent(result.message)}`);
-  redirect(
-    `/precios?aviso=${encodeURIComponent("Tu correo edu.pe quedó anotado. El administrador activa Senior gratis mientras estudies.")}`,
-  );
+  if (!user) redirect("/portal?alta=estudiante#registro");
+  const result = await beginStudentConfirmation(user.id);
+  if (!result.ok) portalNotice(result.message);
+  portalNotice("Abre el enlace de esta página para confirmar el correo de estudiante.");
 }
 
 export async function changePasswordAction(formData: FormData): Promise<void> {

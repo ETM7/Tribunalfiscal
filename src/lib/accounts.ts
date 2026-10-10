@@ -1,7 +1,7 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { isBillingCycle, isPlanId, limaMonth, PLANS, type BillingCycle, type PlanId } from "./plans";
+import { isBillingCycle, isEduPeEmail, isPlanId, limaMonth, PLANS, plusOneYear, type BillingCycle, type PlanId } from "./plans";
 
 const SCRYPT_N = 16384;
 
@@ -25,6 +25,8 @@ type StoredUser = {
   plan: PlanId;
   pendingPlan: PlanId | null;
   pendingCycle?: BillingCycle | null;
+  studentUntil?: string | null;
+  confirmToken?: string | null;
   usageMonth: string;
   openedIds: string[];
   createdAt: string;
@@ -40,6 +42,7 @@ export type PublicUser = {
   plan: PlanId;
   pendingPlan: PlanId | null;
   pendingCycle: BillingCycle | null;
+  studentUntil: string | null;
   usageMonth: string;
   rtfOpens: number;
   openedIds: string[];
@@ -128,6 +131,7 @@ function toPublic(user: StoredUser, now = new Date()): PublicUser {
     plan: user.plan,
     pendingPlan: user.pendingPlan,
     pendingCycle: user.pendingPlan ? (user.pendingCycle === "anual" ? "anual" : "mensual") : null,
+    studentUntil: user.studentUntil ?? null,
     usageMonth: month,
     rtfOpens: user.usageMonth === month ? user.openedIds.length : 0,
     openedIds: user.usageMonth === month ? [...user.openedIds] : [],
@@ -188,10 +192,28 @@ function freshUser(input: {
     plan: input.plan,
     pendingPlan: null,
     pendingCycle: null,
+    studentUntil: null,
+    confirmToken: null,
     usageMonth: limaMonth(input.now),
     openedIds: [],
     createdAt: input.now.toISOString(),
   };
+}
+
+function studentWindowOpen(user: StoredUser, now: Date): boolean {
+  if (!user.studentUntil) return false;
+  const until = new Date(user.studentUntil);
+  return !Number.isNaN(until.getTime()) && until.getTime() > now.getTime();
+}
+
+function applyStudentWindow(user: StoredUser, plan: PlanId, now: Date): void {
+  if (plan === "estudiante") {
+    user.studentUntil = plusOneYear(now);
+    user.confirmToken = null;
+    return;
+  }
+  user.studentUntil = null;
+  user.confirmToken = null;
 }
 
 function rollMonth(user: StoredUser, now: Date): void {
@@ -205,6 +227,7 @@ export async function registerUser(input: {
   email: string;
   name: string;
   password: string;
+  student?: boolean;
   now?: Date;
 }): Promise<AccountResult<PublicUser>> {
   const email = normalizeEmail(input.email);
@@ -213,6 +236,9 @@ export async function registerUser(input: {
   if (!validEmail(email)) return { ok: false, message: "Escribe un correo válido." };
   if (!name) return { ok: false, message: "El nombre necesita entre 2 y 80 caracteres." };
   if (!password) return { ok: false, message: "La contraseña necesita entre 8 y 80 caracteres." };
+  if (input.student && !isEduPeEmail(email)) {
+    return { ok: false, message: "Usa el correo que te dio tu universidad. Tiene que terminar en edu.pe." };
+  }
   const now = input.now ?? new Date();
   const passwordHash = await hashPassword(password);
   return withLock(dataDir(), async () => {
@@ -220,7 +246,15 @@ export async function registerUser(input: {
     if (store.users.some((user) => user.email === email)) {
       return { ok: false, message: "Ese correo ya tiene una cuenta." };
     }
-    const user = freshUser({ email, name, passwordHash, role: "user", plan: "junior", now });
+    const user = freshUser({
+      email,
+      name,
+      passwordHash,
+      role: "user",
+      plan: input.student ? "estudiante" : "junior",
+      now,
+    });
+    if (input.student) user.confirmToken = randomBytes(24).toString("hex");
     store.users.push(user);
     await writeStore(store);
     return { ok: true, value: toPublic(user, now) };
@@ -333,6 +367,7 @@ export async function assignPlan(userId: string, plan: string, now = new Date())
     user.plan = plan;
     user.pendingPlan = null;
     user.pendingCycle = null;
+    applyStudentWindow(user, plan, now);
     rollMonth(user, now);
     await writeStore(store);
     return { ok: true, value: toPublic(user, now) };
@@ -345,9 +380,11 @@ export async function confirmPendingPlan(userId: string, now = new Date()): Prom
     const user = store.users.find((item) => item.id === userId);
     if (!user) return { ok: false, message: "No encuentro esa cuenta." };
     if (!user.pendingPlan) return { ok: false, message: "No hay un plan pendiente de pago." };
-    user.plan = user.pendingPlan;
+    const nextPlan = user.pendingPlan;
+    user.plan = nextPlan;
     user.pendingPlan = null;
     user.pendingCycle = null;
+    applyStudentWindow(user, nextPlan, now);
     rollMonth(user, now);
     await writeStore(store);
     return { ok: true, value: toPublic(user, now) };
@@ -386,6 +423,51 @@ export async function changePassword(
   });
 }
 
+export async function readStudentConfirmToken(userId: string): Promise<string | null> {
+  const store = await withLock(dataDir(), () => readStore());
+  const user = store.users.find((item) => item.id === userId);
+  return user?.confirmToken || null;
+}
+
+export async function confirmStudentByToken(
+  token: string,
+  now = new Date(),
+): Promise<AccountResult<PublicUser>> {
+  const clean = token.trim();
+  if (!clean) return { ok: false, message: "El enlace de confirmación no es válido." };
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.confirmToken === clean);
+    if (!user || !isEduPeEmail(user.email)) {
+      return { ok: false, message: "El enlace de confirmación no es válido o ya se usó." };
+    }
+    user.plan = "estudiante";
+    user.studentUntil = plusOneYear(now);
+    user.confirmToken = null;
+    await writeStore(store);
+    return { ok: true, value: toPublic(user, now) };
+  });
+}
+
+export async function beginStudentConfirmation(userId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    if (!isEduPeEmail(user.email)) {
+      return { ok: false, message: "Usa el correo que te dio tu universidad. Tiene que terminar en edu.pe." };
+    }
+    if (user.plan === "senior" || user.plan === "gerente" || user.plan === "socio") {
+      return { ok: false, message: "Tu plan ya incluye más lecturas que el de estudiante." };
+    }
+    user.plan = "estudiante";
+    user.studentUntil = null;
+    user.confirmToken = randomBytes(24).toString("hex");
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
 export async function consumeRtf(
   userId: string | null,
   resolutionId: string,
@@ -406,6 +488,15 @@ export async function consumeRtf(
     if (!user) return { ok: false, message: "La sesión ya no corresponde a una cuenta." };
     rollMonth(user, now);
     const plan = PLANS[user.plan];
+    if (user.plan === "estudiante" && !studentWindowOpen(user, now)) {
+      await writeStore(store);
+      return {
+        ok: false,
+        message: user.studentUntil
+          ? "El beneficio de estudiante venció. Hay que revalidarlo en el portal."
+          : "Confirma el enlace de tu correo de estudiante para usar las 5 lecturas.",
+      };
+    }
     const already = user.openedIds.includes(resolution);
     if (plan.rtfLimit === 0) {
       await writeStore(store);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { requestPlanAction, validateEduAction } from "@/app/portal/actions";
+import { requestPlanAction } from "@/app/portal/actions";
 import type { PublicUser } from "@/lib/accounts";
 import {
   annualMonthlyEquivalent,
@@ -15,7 +15,7 @@ import {
   type PlanId,
 } from "@/lib/plans";
 
-const AUDIENCE: Record<PlanId, string> = {
+const AUDIENCE: Record<Exclude<PlanId, "estudiante">, string> = {
   junior: "Para probar sin compromiso.",
   senior: "Para el abogado que litiga cada semana.",
   gerente: "Para quien vive en la jurisprudencia.",
@@ -42,7 +42,7 @@ export function PriceBoard({ user }: { user: PublicUser | null }) {
           <PlanCard key={id} plan={PLANS[id]} user={user} cycle={cycle} />
         ))}
       </div>
-      <EduBanner user={user} />
+      <StudentOffer />
     </>
   );
 }
@@ -67,7 +67,7 @@ function PlanCard({
     <article className={featured ? "plan dest" : "plan"}>
       {featured ? <span className="cinta">Más elegido</span> : null}
       <h3>{plan.name}</h3>
-      <p className="para">{AUDIENCE[plan.id]}</p>
+      <p className="para">{plan.id === "estudiante" ? "" : AUDIENCE[plan.id]}</p>
       {plan.priceSoles === 0 ? (
         <div className="monto">
           <span className="n">Gratis</span>
@@ -143,26 +143,42 @@ function PlanButton({
   );
 }
 
-function EduBanner({ user }: { user: PublicUser | null }) {
+function StudentOffer() {
   return (
-    <div className="edu">
-      <p>¿Estudias Derecho o Contabilidad? Con tu correo @edu.pe tienes Senior gratis mientras estudies.</p>
-      {user ? (
-        <form action={validateEduAction}>
-          <button type="submit" className="edu-link">
-            Validar mi correo
-          </button>
-        </form>
-      ) : (
-        <a className="edu-link" href="/portal">
-          Validar mi correo
+    <article className="oferta-est">
+      <div>
+        <span className="insignia-uni">Con correo universitario</span>
+        <h3>Estudiante</h3>
+        <p className="para">Para quien estudia Derecho o Contabilidad.</p>
+      </div>
+      <div className="lectura-est">
+        <span className="gratis">Gratis</span>
+        <div>
+          <b>5 lecturas</b>
+          <span>al mes, mientras estudies</span>
+        </div>
+      </div>
+      <ul>
+        <li>Búsquedas sin límite</li>
+        <li>Dónde aparece el criterio, por página</li>
+        <li>Resumen del PDF</li>
+        <li>Descarga editable</li>
+      </ul>
+      <div>
+        <a className="btn btn-primario" href="/portal?alta=estudiante#registro">
+          Regístrate con tu correo de estudiante
         </a>
-      )}
-    </div>
+        <p className="nota-est">
+          Solo con el correo que te dio tu universidad (por ejemplo, terminado en edu.pe). Lo confirmamos con un enlace
+          y lo revalidamos cada año.
+        </p>
+      </div>
+    </article>
   );
 }
 
 function bullets(id: PlanId): string[] {
+  if (id === "estudiante") return [];
   if (id === "junior") {
     return [
       "Búsquedas sin límite",
