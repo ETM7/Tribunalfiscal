@@ -17,7 +17,10 @@ import {
   readStudentConfirmToken,
   registerUser,
   requestPlan,
+  addCard,
+  getAccount,
   resetUsage,
+  saveProfile,
 } from "./accounts";
 
 describe("cuentas", { concurrency: false }, () => {
@@ -177,6 +180,58 @@ describe("cuentas", { concurrency: false }, () => {
       const opened = await consumeRtf(created.value.id, "2019_5_11125");
       assert.equal(opened.ok, true);
       if (opened.ok) assert.equal(opened.remaining, null);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("el perfil guarda datos y la tarjeta solo los últimos 4", async () => {
+    const dir = await sandbox();
+    try {
+      const created = await registerUser({
+        email: "ana.torres@estudiotorres.pe",
+        name: "Ana Torres",
+        password: "clave-perfil",
+      });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+      const saved = await saveProfile(created.value.id, {
+        givenNames: "Ana Lucía",
+        surnames: "Torres Salinas",
+        docType: "DNI",
+        docNumber: "45879213",
+        phone: "+51 987 654 321",
+        studentEmail: "",
+        profession: "abogado",
+        licenseNumber: "CAL 78421",
+        firm: "Estudio Torres",
+        jobTitle: "Asociada senior",
+        specialty: "IGV",
+        receipt: "factura",
+        ruc: "20601234567",
+        legalName: "ESTUDIO TORRES ABOGADOS S.A.C.",
+        fiscalAddress: "Av. Javier Prado Este 492",
+        twitter: "@usuario",
+        facebook: "",
+        website: "estudiotorres.pe",
+        shareCv: false,
+        email: "ana.torres@estudiotorres.pe",
+        confirmPhone: true,
+      });
+      assert.equal(saved.ok, true);
+      const card = await addCard(created.value.id, "visa", "4821", "08/29");
+      assert.equal(card.ok, true);
+      const refused = await addCard(created.value.id, "visa", "4111111111114821", "08/29");
+      assert.equal(refused.ok, false);
+      const opened = await consumeRtf(created.value.id, "2019_5_11125", new Date(), "Decisión 578");
+      assert.equal(opened.ok, true);
+      const account = await getAccount(created.value.id);
+      assert.equal(account?.name, "Ana Lucía Torres Salinas");
+      assert.equal(account?.profile.phoneConfirmed, true);
+      assert.equal(account?.cards[0]?.last4, "4821");
+      assert.equal(account?.cards[0]?.brand, "visa");
+      assert.equal(JSON.stringify(account?.cards).includes("4111"), false);
+      assert.equal(account?.readings[0]?.criterion, "Decisión 578");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

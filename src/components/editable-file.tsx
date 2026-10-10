@@ -1,6 +1,8 @@
 "use client";
 
-export function EditableFileActions({ filename }: { filename: string }) {
+import { markDownloadedAction } from "@/app/portal/actions";
+
+export function EditableFileActions({ filename, resolutionId }: { filename: string; resolutionId?: string }) {
   function download() {
     const article = document.getElementById("documento-resolucion");
     const body = article?.innerHTML ?? "";
@@ -30,6 +32,7 @@ ${body}
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+    if (resolutionId) void markDownloadedAction(resolutionId);
   }
 
   return (

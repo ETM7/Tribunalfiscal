@@ -42,10 +42,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <div className="envoltura">
             <span>Tribunal Fiscal · Herramienta independiente, no es un sitio del Estado.</span>
             <nav aria-label="Pie">
-              <a href="/">Inicio</a>
               <a href="/precios">Precios</a>
-              <a href="/buscar">Buscar</a>
-              <a href="/portal">Portal</a>
+              <a href="/terminos">Términos</a>
+              <a href="/privacidad">Privacidad</a>
+              <a href="/contacto">Contacto</a>
             </nav>
           </div>
         </footer>

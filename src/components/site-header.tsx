@@ -1,7 +1,7 @@
 import { logoutAction } from "@/app/portal/actions";
 import { NavLink } from "@/components/nav-link";
 import type { PublicUser } from "@/lib/accounts";
-import { PLANS } from "@/lib/plans";
+import { PLANS, usageThisMonth } from "@/lib/plans";
 
 export function SiteHeader({ user }: { user: PublicUser | null }) {
   return (
@@ -17,9 +17,7 @@ export function SiteHeader({ user }: { user: PublicUser | null }) {
           <NavLink href="/buscar">Buscar</NavLink>
           <NavLink href="/lectura">Lector</NavLink>
           {user ? (
-            <span className="estado-sesion">
-              {user.name} · {PLANS[user.plan].name}
-            </span>
+            <span className="estado-sesion">{sessionLine(user)}</span>
           ) : (
             <NavLink href="/portal">Entrar</NavLink>
           )}
@@ -40,4 +38,12 @@ export function SiteHeader({ user }: { user: PublicUser | null }) {
       </div>
     </header>
   );
+}
+
+function sessionLine(user: PublicUser): string {
+  const plan = PLANS[user.plan];
+  const used = usageThisMonth(user);
+  if (plan.rtfLimit === null) return `${user.name} · ${plan.name}`;
+  const left = Math.max(0, plan.rtfLimit - used);
+  return `${user.name} · ${plan.name} · ${left} lecturas`;
 }

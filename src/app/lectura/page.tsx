@@ -29,7 +29,8 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
   }
 
   const viewer = await currentUser();
-  const gate = await consumeRtf(viewer?.id ?? null, parsed.request.id);
+  const criterion = [parsed.request.exacta, parsed.request.todas, parsed.request.cerca].filter(Boolean).join(" · ");
+  const gate = await consumeRtf(viewer?.id ?? null, parsed.request.id, new Date(), criterion);
   if (!gate.ok) {
     return <Notice message={gate.message} actionHref="/portal" actionLabel="Ir al portal" />;
   }
@@ -68,7 +69,7 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
             </div>
             <div className="panel">
               <div className="acciones">
-                <EditableFileActions filename={ready.filename} />
+                <EditableFileActions filename={ready.filename} resolutionId={ready.id} />
               </div>
               <div className="enlaces-mef">
                 {ready.sumillaUrl ? (

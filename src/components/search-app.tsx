@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState, useSyncExternalStore } from "react";
 import { searchAction } from "@/app/actions";
+import { logSearchAction } from "@/app/portal/actions";
 import { initialSearchState, type ActionState } from "@/app/action-types";
 import type { SearchSuccess } from "@/lib/official-search";
 import type { RtfAccess } from "@/lib/plans";
@@ -128,6 +129,8 @@ export function SearchApp({
       saveError = error instanceof Error ? error.message : "No se pudo guardar el historial.";
       listeners.forEach((listener) => listener());
     }
+    const phrase = state.query.exacta || state.query.todas || state.query.cerca;
+    if (phrase) void logSearchAction(phrase);
   }, [state]);
 
   const visible: { query: SearchQuery; result: SearchSuccess; saved: boolean } | null = reopened

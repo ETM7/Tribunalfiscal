@@ -1,6 +1,21 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  emptyProfile,
+  monthOfIso,
+  monthTitle,
+  normalizeProfile,
+  parseCardInput,
+  toPublicProfile,
+  type LinkedInLink,
+  type Movement,
+  type PayCard,
+  type Profile,
+  type PublicProfile,
+  type ReadingLog,
+  type SearchLog,
+} from "./profile";
 import { isBillingCycle, isEduPeEmail, isPlanId, limaMonth, PLANS, plusOneYear, type BillingCycle, type PlanId } from "./plans";
 
 const SCRYPT_N = 16384;
@@ -30,6 +45,26 @@ type StoredUser = {
   usageMonth: string;
   openedIds: string[];
   createdAt: string;
+  profile?: Profile;
+  linkedin?: LinkedInLink | null;
+  cards?: PayCard[];
+  movements?: Movement[];
+  readings?: ReadingLog[];
+  searches?: SearchLog[];
+  autoRenew?: boolean;
+  pendingEmail?: string | null;
+  emailToken?: string | null;
+};
+
+export type AccountDetail = PublicUser & {
+  profile: PublicProfile;
+  linkedin: LinkedInLink | null;
+  cards: PayCard[];
+  movements: Movement[];
+  readings: ReadingLog[];
+  searches: SearchLog[];
+  autoRenew: boolean;
+  pendingEmail: string | null;
 };
 
 type Store = { users: StoredUser[] };
@@ -197,6 +232,15 @@ function freshUser(input: {
     usageMonth: limaMonth(input.now),
     openedIds: [],
     createdAt: input.now.toISOString(),
+    profile: emptyProfile(),
+    linkedin: null,
+    cards: [],
+    movements: [],
+    readings: [],
+    searches: [],
+    autoRenew: true,
+    pendingEmail: null,
+    emailToken: null,
   };
 }
 
@@ -221,6 +265,55 @@ function rollMonth(user: StoredUser, now: Date): void {
   if (user.usageMonth === month) return;
   user.usageMonth = month;
   user.openedIds = [];
+}
+
+function ensureAccount(user: StoredUser): void {
+  user.profile = normalizeProfile(user.profile);
+  user.cards = Array.isArray(user.cards) ? user.cards : [];
+  user.movements = Array.isArray(user.movements) ? user.movements : [];
+  user.readings = Array.isArray(user.readings) ? user.readings : [];
+  user.searches = Array.isArray(user.searches) ? user.searches : [];
+  if (typeof user.autoRenew !== "boolean") user.autoRenew = true;
+  user.linkedin = user.linkedin?.name ? user.linkedin : null;
+  user.pendingEmail = user.pendingEmail || null;
+  user.emailToken = user.emailToken || null;
+}
+
+function detailOf(user: StoredUser, now = new Date()): AccountDetail {
+  ensureAccount(user);
+  const profile = user.profile ?? emptyProfile();
+  return {
+    ...toPublic(user, now),
+    profile: toPublicProfile(profile),
+    linkedin: user.linkedin ?? null,
+    cards: user.cards ?? [],
+    movements: user.movements ?? [],
+    readings: user.readings ?? [],
+    searches: user.searches ?? [],
+    autoRenew: user.autoRenew !== false,
+    pendingEmail: user.pendingEmail ?? null,
+  };
+}
+
+function recordMovement(user: StoredUser, plan: PlanId, now: Date): void {
+  const price = PLANS[plan].priceSoles;
+  if (price <= 0) return;
+  ensureAccount(user);
+  const card = user.cards?.find((item) => item.principal) ?? user.cards?.[0];
+  const [year, month] = limaMonth(now).split("-");
+  const label = monthTitle(`${year}-${month}`).replace(` ${year}`, "").toLocaleLowerCase("es-PE");
+  const serial = (randomBytes(3).readUIntBE(0, 3) % 900000) + 100000;
+  user.movements?.unshift({
+    id: randomBytes(6).toString("hex"),
+    at: now.toISOString(),
+    concept: `${PLANS[plan].name} · ${label} ${year}`,
+    brand: card?.brand ?? "",
+    last4: card?.last4 ?? "",
+    receipt: `F001-${serial}`,
+    amountSoles: price,
+    status: "pagado",
+  });
+  user.movements = (user.movements ?? []).slice(0, 120);
 }
 
 export async function registerUser(input: {
@@ -364,9 +457,11 @@ export async function assignPlan(userId: string, plan: string, now = new Date())
     const store = await readStore();
     const user = store.users.find((item) => item.id === userId);
     if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    const previous = user.plan;
     user.plan = plan;
     user.pendingPlan = null;
     user.pendingCycle = null;
+    if (previous !== plan) recordMovement(user, plan, now);
     applyStudentWindow(user, plan, now);
     rollMonth(user, now);
     await writeStore(store);
@@ -381,9 +476,11 @@ export async function confirmPendingPlan(userId: string, now = new Date()): Prom
     if (!user) return { ok: false, message: "No encuentro esa cuenta." };
     if (!user.pendingPlan) return { ok: false, message: "No hay un plan pendiente de pago." };
     const nextPlan = user.pendingPlan;
+    const previous = user.plan;
     user.plan = nextPlan;
     user.pendingPlan = null;
     user.pendingCycle = null;
+    if (previous !== nextPlan) recordMovement(user, nextPlan, now);
     applyStudentWindow(user, nextPlan, now);
     rollMonth(user, now);
     await writeStore(store);
@@ -438,7 +535,10 @@ export async function confirmStudentByToken(
   return withLock(dataDir(), async () => {
     const store = await readStore();
     const user = store.users.find((item) => item.confirmToken === clean);
-    if (!user || !isEduPeEmail(user.email)) {
+    if (!user) return { ok: false, message: "El enlace de confirmación no es válido o ya se usó." };
+    ensureAccount(user);
+    const studentMail = user.profile?.studentEmail || user.email;
+    if (!isEduPeEmail(studentMail)) {
       return { ok: false, message: "El enlace de confirmación no es válido o ya se usó." };
     }
     user.plan = "estudiante";
@@ -472,6 +572,7 @@ export async function consumeRtf(
   userId: string | null,
   resolutionId: string,
   now = new Date(),
+  criterion = "",
 ): Promise<{ ok: true; counted: boolean; remaining: number | null } | { ok: false; message: string }> {
   const resolution = resolutionId.trim().slice(0, 120);
   if (!userId) {
@@ -497,6 +598,8 @@ export async function consumeRtf(
           : "Confirma el enlace de tu correo de estudiante para usar las 5 lecturas.",
       };
     }
+    ensureAccount(user);
+    const note = criterion.trim().replace(/\s+/g, " ").slice(0, 160);
     const already = user.openedIds.includes(resolution);
     if (plan.rtfLimit === 0) {
       await writeStore(store);
@@ -509,7 +612,19 @@ export async function consumeRtf(
         message: `Este mes ya usaste las ${plan.rtfLimit} consultas al RTF editable del plan ${plan.name}.`,
       };
     }
-    if (!already) user.openedIds.push(resolution);
+    if (!already) {
+      user.openedIds.push(resolution);
+      user.readings?.unshift({
+        at: now.toISOString(),
+        resolutionId: resolution,
+        criterion: note,
+        downloaded: false,
+      });
+      user.readings = (user.readings ?? []).slice(0, 400);
+    } else if (note) {
+      const row = user.readings?.find((item) => item.resolutionId === resolution && !item.criterion);
+      if (row) row.criterion = note;
+    }
     await writeStore(store);
     const remaining = plan.rtfLimit === null ? null : plan.rtfLimit - user.openedIds.length;
     return { ok: true, counted: !already, remaining };
@@ -524,6 +639,400 @@ export async function releaseRtf(userId: string, resolutionId: string, now = new
     const user = store.users.find((item) => item.id === userId);
     if (!user || user.usageMonth !== limaMonth(now)) return;
     user.openedIds = user.openedIds.filter((item) => item !== resolution);
+    const month = limaMonth(now);
+    user.readings = (user.readings ?? []).filter(
+      (item) => !(item.resolutionId === resolution && monthOfIso(item.at) === month),
+    );
+    await writeStore(store);
+  });
+}
+
+export async function getAccount(id: string, now = new Date()): Promise<AccountDetail | null> {
+  const store = await withLock(dataDir(), () => readStore());
+  const user = store.users.find((item) => item.id === id);
+  return user ? detailOf(user, now) : null;
+}
+
+export type ProfileInput = {
+  givenNames: string;
+  surnames: string;
+  docType: string;
+  docNumber: string;
+  phone: string;
+  studentEmail: string;
+  profession: string;
+  licenseNumber: string;
+  firm: string;
+  jobTitle: string;
+  specialty: string;
+  receipt: string;
+  ruc: string;
+  legalName: string;
+  fiscalAddress: string;
+  twitter: string;
+  facebook: string;
+  website: string;
+  shareCv: boolean;
+  email: string;
+  confirmPhone: boolean;
+};
+
+function cleanPhone(value: string): string | null {
+  const phone = value.replace(/\s+/g, " ").trim();
+  if (!phone) return "";
+  if (!/^\+?[0-9][0-9 -]{5,18}$/.test(phone)) return null;
+  return phone.slice(0, 20);
+}
+
+export async function saveProfile(
+  userId: string,
+  input: ProfileInput,
+): Promise<AccountResult<{ emailToken: string | null }>> {
+  const phone = cleanPhone(input.phone);
+  if (phone === null) return { ok: false, message: "El celular no parece válido." };
+  if (input.confirmPhone && !phone) return { ok: false, message: "Escribe un celular para confirmarlo." };
+  const studentEmail = normalizeEmail(input.studentEmail);
+  if (studentEmail && !isEduPeEmail(studentEmail)) {
+    return { ok: false, message: "El correo de estudiante tiene que terminar en edu.pe." };
+  }
+  if (studentEmail && !validEmail(studentEmail)) return { ok: false, message: "El correo de estudiante no es válido." };
+  const nextEmail = normalizeEmail(input.email);
+  if (!validEmail(nextEmail)) return { ok: false, message: "Escribe un correo válido." };
+  const receipt = input.receipt === "factura" ? "factura" : "boleta";
+  const ruc = input.ruc.replace(/\D/g, "").slice(0, 11);
+  if (receipt === "factura" && ruc.length !== 11) return { ok: false, message: "El RUC de la factura necesita 11 dígitos." };
+
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    if (store.users.some((item) => item.email === nextEmail && item.id !== user.id)) {
+      return { ok: false, message: "Ese correo ya tiene una cuenta." };
+    }
+    const profile = user.profile ?? emptyProfile();
+    const phoneChanged = phone !== profile.phone;
+    profile.givenNames = input.givenNames;
+    profile.surnames = input.surnames;
+    profile.docType = input.docType === "CE" || input.docType === "Pasaporte" ? input.docType : "DNI";
+    profile.docNumber = input.docNumber;
+    profile.phone = phone;
+    profile.phoneConfirmed = input.confirmPhone && Boolean(phone) ? true : phoneChanged ? false : profile.phoneConfirmed;
+    const previousStudent = profile.studentEmail;
+    profile.studentEmail = studentEmail;
+    profile.profession = input.profession;
+    profile.licenseNumber = input.licenseNumber;
+    profile.firm = input.firm;
+    profile.jobTitle = input.jobTitle;
+    profile.specialty = input.specialty;
+    profile.receipt = receipt;
+    profile.ruc = ruc;
+    profile.legalName = input.legalName;
+    profile.fiscalAddress = input.fiscalAddress;
+    profile.twitter = input.twitter.replace(/^@/, "");
+    profile.facebook = input.facebook;
+    profile.website = input.website;
+    profile.shareCv = input.shareCv;
+    user.profile = normalizeProfile(profile);
+    const full = `${user.profile.givenNames} ${user.profile.surnames}`.trim();
+    if (full.length >= 2 && full.length <= 80) user.name = full;
+    if (nextEmail === user.email) {
+      user.pendingEmail = null;
+      user.emailToken = null;
+    } else {
+      user.pendingEmail = nextEmail;
+      user.emailToken = randomBytes(24).toString("hex");
+    }
+    if (studentEmail && studentEmail !== previousStudent) user.confirmToken = randomBytes(24).toString("hex");
+    if (!studentEmail && !isEduPeEmail(user.email)) user.confirmToken = null;
+    await writeStore(store);
+    return { ok: true, value: { emailToken: user.emailToken ?? null } };
+  });
+}
+
+export async function confirmEmailByToken(token: string): Promise<AccountResult<true>> {
+  const clean = token.trim();
+  if (!clean) return { ok: false, message: "El enlace de confirmación no es válido." };
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.emailToken === clean && item.pendingEmail);
+    if (!user || !user.pendingEmail) return { ok: false, message: "El enlace de confirmación no es válido o ya se usó." };
+    if (store.users.some((item) => item.email === user.pendingEmail && item.id !== user.id)) {
+      return { ok: false, message: "Ese correo ya tiene otra cuenta." };
+    }
+    user.email = user.pendingEmail;
+    user.pendingEmail = null;
+    user.emailToken = null;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function readEmailConfirmToken(userId: string): Promise<string | null> {
+  const store = await withLock(dataDir(), () => readStore());
+  const user = store.users.find((item) => item.id === userId);
+  return user?.emailToken || null;
+}
+
+function profileDir(userId: string): string {
+  if (!/^[a-f0-9]{24}$/.test(userId)) throw new Error("Cuenta inválida.");
+  return path.join(dataDir(), "perfiles", userId);
+}
+
+function imageName(bytes: Buffer): "foto.jpg" | "foto.png" | null {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "foto.jpg";
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "foto.png";
+  return null;
+}
+
+export async function savePhoto(userId: string, bytes: Buffer): Promise<AccountResult<true>> {
+  if (bytes.length === 0) return { ok: true, value: true };
+  if (bytes.length > 2 * 1024 * 1024) return { ok: false, message: "La foto pasa de 2 MB." };
+  const filename = imageName(bytes);
+  if (!filename) return { ok: false, message: "La foto tiene que ser JPG o PNG." };
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    await mkdir(profileDir(userId), { recursive: true });
+    await writeFile(path.join(profileDir(userId), filename), bytes, { mode: 0o600 });
+    if (user.profile && user.profile.photoFile && user.profile.photoFile !== filename) {
+      await rm(path.join(profileDir(userId), user.profile.photoFile), { force: true });
+    }
+    if (user.profile) user.profile.photoFile = filename;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function removePhoto(userId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    if (user.profile?.photoFile) await rm(path.join(profileDir(userId), user.profile.photoFile), { force: true });
+    if (user.profile) user.profile.photoFile = null;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function saveCv(userId: string, bytes: Buffer, originalName: string): Promise<AccountResult<true>> {
+  if (bytes.length === 0) return { ok: true, value: true };
+  if (bytes.length > 5 * 1024 * 1024) return { ok: false, message: "El CV pasa de 5 MB." };
+  const lower = originalName.toLowerCase();
+  const pdf = bytes.subarray(0, 4).toString() === "%PDF" && lower.endsWith(".pdf");
+  const docx = bytes.length > 2 && bytes[0] === 0x50 && bytes[1] === 0x4b && lower.endsWith(".docx");
+  const doc = bytes.length > 2 && bytes[0] === 0xd0 && bytes[1] === 0xcf && lower.endsWith(".doc");
+  if (!pdf && !docx && !doc) return { ok: false, message: "El CV tiene que ser PDF o Word." };
+  const safeName = originalName.replace(/[^\w.\- ]+/g, "").trim().slice(0, 80) || "cv.pdf";
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    await mkdir(profileDir(userId), { recursive: true });
+    await writeFile(path.join(profileDir(userId), "cv.bin"), bytes, { mode: 0o600 });
+    if (user.profile) {
+      user.profile.cvFile = "cv.bin";
+      user.profile.cvName = safeName;
+      user.profile.cvBytes = bytes.length;
+      user.profile.cvUploadedAt = new Date().toISOString();
+    }
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function removeCv(userId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    await rm(path.join(profileDir(userId), "cv.bin"), { force: true });
+    if (user.profile) {
+      user.profile.cvFile = null;
+      user.profile.cvName = "";
+      user.profile.cvBytes = 0;
+      user.profile.cvUploadedAt = null;
+    }
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function readProfileFile(
+  userId: string,
+  kind: "foto" | "cv",
+): Promise<{ bytes: Buffer; filename: string; type: string } | null> {
+  const store = await withLock(dataDir(), () => readStore());
+  const user = store.users.find((item) => item.id === userId);
+  if (!user) return null;
+  ensureAccount(user);
+  if (kind === "foto" && user.profile?.photoFile) {
+    const filename = user.profile.photoFile;
+    const bytes = await readFile(path.join(profileDir(userId), filename));
+    return { bytes, filename, type: filename.endsWith(".png") ? "image/png" : "image/jpeg" };
+  }
+  if (kind === "cv" && user.profile?.cvFile) {
+    const bytes = await readFile(path.join(profileDir(userId), "cv.bin"));
+    const name = user.profile.cvName || "cv.pdf";
+    const type = name.toLowerCase().endsWith(".pdf")
+      ? "application/pdf"
+      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    return { bytes, filename: name, type };
+  }
+  return null;
+}
+
+export async function connectLinkedIn(userId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    const profile = user.profile ?? emptyProfile();
+    const name = `${profile.givenNames} ${profile.surnames}`.trim() || user.name;
+    user.linkedin = { name, email: user.email };
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function disconnectLinkedIn(userId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    user.linkedin = null;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function importLinkedIn(userId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user?.linkedin?.name) return { ok: false, message: "Primero conecta LinkedIn." };
+    ensureAccount(user);
+    const parts = user.linkedin.name.trim().split(/\s+/).filter(Boolean);
+    const profile = user.profile ?? emptyProfile();
+    if (parts.length >= 2) {
+      profile.givenNames = parts.length > 3 ? parts.slice(0, -2).join(" ") : parts.length === 3 ? parts[0] : parts[0];
+      profile.surnames = parts.length >= 3 ? parts.slice(-2).join(" ") : parts[1];
+      user.profile = normalizeProfile(profile);
+      const full = `${user.profile.givenNames} ${user.profile.surnames}`.trim();
+      if (full.length >= 2) user.name = full.slice(0, 80);
+    }
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function addCard(
+  userId: string,
+  brand: string,
+  last4: string,
+  expiry: string,
+): Promise<AccountResult<true>> {
+  const parsed = parseCardInput(brand, last4, expiry);
+  if (!parsed.ok) return parsed;
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    const cards = user.cards ?? [];
+    if (cards.length >= 4) return { ok: false, message: "Puedes guardar hasta 4 tarjetas." };
+    if (cards.some((item) => item.last4 === parsed.value.last4 && item.brand === parsed.value.brand)) {
+      return { ok: false, message: "Esa tarjeta ya está guardada." };
+    }
+    cards.push({
+      id: randomBytes(6).toString("hex"),
+      brand: parsed.value.brand,
+      last4: parsed.value.last4,
+      expiry: parsed.value.expiry,
+      principal: cards.length === 0,
+    });
+    user.cards = cards;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function useCard(userId: string, cardId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    const cards = user.cards ?? [];
+    if (!cards.some((item) => item.id === cardId)) return { ok: false, message: "No encuentro esa tarjeta." };
+    for (const card of cards) card.principal = card.id === cardId;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function removeCard(userId: string, cardId: string): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    ensureAccount(user);
+    const cards = (user.cards ?? []).filter((item) => item.id !== cardId);
+    if (!cards.some((item) => item.principal) && cards[0]) cards[0].principal = true;
+    user.cards = cards;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function setAutoRenew(userId: string, active: boolean): Promise<AccountResult<true>> {
+  return withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return { ok: false, message: "No encuentro esa cuenta." };
+    user.autoRenew = active;
+    await writeStore(store);
+    return { ok: true, value: true };
+  });
+}
+
+export async function logSearch(userId: string, query: string, now = new Date()): Promise<void> {
+  const text = query.trim().replace(/\s+/g, " ").slice(0, 160);
+  if (text.length < 2) return;
+  await withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return;
+    ensureAccount(user);
+    const last = user.searches?.[0];
+    if (last && last.query === text && now.getTime() - new Date(last.at).getTime() < 2 * 60 * 1000) return;
+    user.searches?.unshift({ at: now.toISOString(), query: text });
+    user.searches = (user.searches ?? []).slice(0, 400);
+    await writeStore(store);
+  });
+}
+
+export async function markDownloaded(userId: string, resolutionId: string, now = new Date()): Promise<void> {
+  const resolution = resolutionId.trim().slice(0, 120);
+  if (!resolution) return;
+  await withLock(dataDir(), async () => {
+    const store = await readStore();
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) return;
+    ensureAccount(user);
+    const month = limaMonth(now);
+    const row = (user.readings ?? []).find((item) => item.resolutionId === resolution && monthOfIso(item.at) === month);
+    if (row) row.downloaded = true;
+    else if (user.openedIds.includes(resolution) && user.usageMonth === month) {
+      user.readings?.unshift({ at: now.toISOString(), resolutionId: resolution, criterion: "", downloaded: true });
+    }
     await writeStore(store);
   });
 }
