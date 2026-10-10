@@ -490,7 +490,7 @@ function PdfTranscript({
           Abrir RTF editable
         </a>
       ) : (
-        <span className="secondary inline-block cursor-not-allowed opacity-60" aria-disabled="true">
+        <span className="rtf-locked" aria-disabled="true">
           Abrir RTF editable
         </span>
       )}

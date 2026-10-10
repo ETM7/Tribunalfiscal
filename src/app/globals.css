@@ -131,6 +131,18 @@ a {
   text-underline-offset: 2px;
 }
 
+.rtf-locked {
+  display: inline-block;
+  border: 1px solid #cfc6b8;
+  border-radius: 999px;
+  background: #e7e0d4;
+  color: #8a8174;
+  padding: 0.7rem 1rem;
+  font-weight: 650;
+  text-align: center;
+  cursor: not-allowed;
+}
+
 .resumen-pdf > summary {
   display: inline-block;
   cursor: pointer;
