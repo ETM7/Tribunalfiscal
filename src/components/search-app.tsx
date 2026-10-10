@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState, useSyncExternalStore } from "react";
 import { searchAction } from "@/app/actions";
-import { initialSearchState } from "@/app/action-types";
+import { initialSearchState, type ActionState } from "@/app/action-types";
 import type { SearchSuccess } from "@/lib/official-search";
 import type { RtfAccess } from "@/lib/plans";
 import {
@@ -93,12 +93,20 @@ function advancedFilled(query: Pick<SearchQuery, "todas" | "sin" | "cerca" | "fi
   return Boolean(query.todas || query.sin || query.cerca || query.filtrarFecha);
 }
 
-export function SearchApp({ rtf }: { rtf: RtfAccess }) {
-  const [state, formAction, pending] = useActionState(searchAction, initialSearchState);
+export function SearchApp({
+  rtf,
+  initialQuery = "",
+  initialState = initialSearchState,
+}: {
+  rtf: RtfAccess;
+  initialQuery?: string;
+  initialState?: ActionState;
+}) {
+  const [state, formAction, pending] = useActionState(searchAction, initialState);
   const history = useSyncExternalStore(subscribe, readEntries, () => emptyEntries);
   const storageError = useSyncExternalStore(subscribe, readSaveError, () => "");
   const [reopened, setReopened] = useState<HistoryEntry | null>(null);
-  const [exacta, setExacta] = useState("");
+  const [exacta, setExacta] = useState(initialState.query?.exacta || initialQuery);
   const [todas, setTodas] = useState("");
   const [sin, setSin] = useState("");
   const [cerca, setCerca] = useState("");

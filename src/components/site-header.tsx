@@ -1,4 +1,5 @@
 import { logoutAction } from "@/app/portal/actions";
+import { NavLink } from "@/components/nav-link";
 import type { PublicUser } from "@/lib/accounts";
 import { PLANS } from "@/lib/plans";
 
@@ -11,17 +12,19 @@ export function SiteHeader({ user }: { user: PublicUser | null }) {
           Tribunal Fiscal
         </a>
         <nav className="nav" aria-label="Principal">
-          <a href="/">Buscar</a>
-          <a href="/lectura">Lector</a>
+          <NavLink href="/">Inicio</NavLink>
+          <NavLink href="/precios">Precios</NavLink>
+          <NavLink href="/buscar">Buscar</NavLink>
+          <NavLink href="/lectura">Lector</NavLink>
           {user ? (
-            <span className="estado-sesion ocultable">
+            <span className="estado-sesion">
               {user.name} · {PLANS[user.plan].name}
             </span>
           ) : (
-            <a href="/portal">Entrar</a>
+            <NavLink href="/portal">Entrar</NavLink>
           )}
-          {user ? <a href="/portal">Portal</a> : null}
-          {user?.role === "admin" ? <a href="/admin">Administración</a> : null}
+          {user ? <NavLink href="/portal">Portal</NavLink> : null}
+          {user?.role === "admin" ? <NavLink href="/admin">Administración</NavLink> : null}
           {user ? (
             <form action={logoutAction}>
               <button type="submit" className="linkish">

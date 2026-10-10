@@ -103,6 +103,20 @@ export function priceLabel(plan: Plan): string {
   return plan.priceSoles === 0 ? "Gratis" : `S/ ${plan.priceSoles} al mes`;
 }
 
+export function rtfQuota(plan: Plan): { amount: string; caption: string; cell: string } {
+  if (plan.rtfLimit === null) {
+    return { amount: "Sin límite", caption: "consultas al RTF editable", cell: "Sin límite" };
+  }
+  if (plan.rtfLimit === 0) {
+    return { amount: "Sin lecturas", caption: "del RTF editable", cell: "—" };
+  }
+  return {
+    amount: `${plan.rtfLimit} lecturas`,
+    caption: "al mes",
+    cell: `${plan.rtfLimit} al mes`,
+  };
+}
+
 export function planRequestNotice(plan: Plan): string {
   if (plan.priceSoles === 0) {
     return `Solicitaste volver al plan ${plan.name}. El administrador lo activa.`;

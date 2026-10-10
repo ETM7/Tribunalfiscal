@@ -29,7 +29,7 @@ export async function registerAction(formData: FormData): Promise<void> {
 
 export async function logoutAction(): Promise<void> {
   await clearSession();
-  redirect("/portal");
+  redirect("/");
 }
 
 export async function requestPlanAction(formData: FormData): Promise<void> {

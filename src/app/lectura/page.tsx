@@ -47,7 +47,7 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
             </h1>
             <p>Usa Control+F o Buscar en esta página. Puedes corregir el texto y descargarlo.</p>
           </div>
-          <a href="/">← Volver a la búsqueda</a>
+          <a href="/buscar">← Volver a la búsqueda</a>
         </div>
 
         <div className="lector">
@@ -193,7 +193,7 @@ function EmptyLector() {
         <h1>Lector</h1>
         <p>Abre una resolución desde Buscar.</p>
         <p style={{ marginTop: "0.9rem" }}>
-          <a href="/">Ir a Buscar</a>
+          <a href="/buscar">Ir a Buscar</a>
         </p>
       </div>
     </main>
@@ -222,7 +222,7 @@ function Notice({
           </p>
         ) : null}
         <p style={{ marginTop: "0.9rem" }}>
-          <a href="/">Volver a la búsqueda</a>
+          <a href="/buscar">Volver a la búsqueda</a>
         </p>
       </div>
     </main>

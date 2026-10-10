@@ -13,6 +13,8 @@ const sans = Source_Sans_3({
 const serif = Source_Serif_4({
   variable: "--font-source-serif",
   subsets: ["latin"],
+  weight: "variable",
+  style: ["normal", "italic"],
 });
 
 const mono = Source_Code_Pro({
@@ -40,7 +42,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <div className="envoltura">
             <span>Tribunal Fiscal · Herramienta independiente, no es un sitio del Estado.</span>
             <nav aria-label="Pie">
-              <a href="/">Buscar</a>
+              <a href="/">Inicio</a>
+              <a href="/precios">Precios</a>
+              <a href="/buscar">Buscar</a>
               <a href="/portal">Portal</a>
             </nav>
           </div>
