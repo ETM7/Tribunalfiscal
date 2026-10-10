@@ -477,19 +477,7 @@ function PdfTranscript({
 
   return (
     <div className="mt-3 border-t border-[var(--line)] pt-3">
-      <p className="text-sm leading-6 text-[var(--muted)]">
-        La sumilla de arriba es el resumen que publica el MEF en su propia página. No está tomada de una
-        página del PDF.
-        {item.sumillaUrl ? (
-          <>
-            {" "}
-            <a href={item.sumillaUrl} target="_blank" rel="noreferrer">
-              Abrir esa sumilla
-            </a>
-          </>
-        ) : null}
-      </p>
-      <a className="secondary mt-3 inline-block" href={href} target="_blank" rel="noreferrer">
+      <a className="secondary inline-block" href={href} target="_blank" rel="noreferrer">
         Abrir texto editable
       </a>
       <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
