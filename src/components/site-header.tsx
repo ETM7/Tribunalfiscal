@@ -11,9 +11,8 @@ export function SiteHeader({ user }: { user: PublicUser | null }) {
           Tribunal Fiscal
         </a>
         <nav className="nav" aria-label="Principal">
-          <a href="/" className="ocultable">
-            Inicio
-          </a>
+          <a href="/">Buscar</a>
+          <a href="/lectura">Lector</a>
           {user ? (
             <span className="estado-sesion ocultable">
               {user.name} · {PLANS[user.plan].name}

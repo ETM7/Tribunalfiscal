@@ -11,14 +11,18 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 export default async function LecturaPage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
-  const parsed = parseTranscriptRequest({
+  const fields = {
     id: first(params.id),
     pdfPath: first(params.pdfPath),
     exacta: first(params.exacta),
     todas: first(params.todas),
     cerca: first(params.cerca),
     sumillaUrl: first(params.sumillaUrl),
-  });
+  };
+  if (!fields.id && !fields.pdfPath) {
+    return <EmptyLector />;
+  }
+  const parsed = parseTranscriptRequest(fields);
   if (!parsed.ok) {
     return <Notice message={parsed.message} />;
   }
@@ -178,6 +182,21 @@ function Criteria({ hits }: { hits: CriterionHit[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function EmptyLector() {
+  return (
+    <main className="envoltura">
+      <div className="app-cab">
+        <span className="rotulo">Lector</span>
+        <h1>Lector</h1>
+        <p>Abre una resolución desde Buscar.</p>
+        <p style={{ marginTop: "0.9rem" }}>
+          <a href="/">Ir a Buscar</a>
+        </p>
+      </div>
+    </main>
   );
 }
 
