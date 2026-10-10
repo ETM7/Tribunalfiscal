@@ -153,7 +153,7 @@ function StudentOffer() {
       </div>
       <div className="lectura-est">
         <span className="gratis">Gratis</span>
-        <div>
+        <div className="cifra-est">
           <b>5 lecturas</b>
           <span>al mes, mientras estudies</span>
         </div>
@@ -164,7 +164,7 @@ function StudentOffer() {
         <li>Resumen del PDF</li>
         <li>Descarga editable</li>
       </ul>
-      <div>
+      <div className="cta-est">
         <a className="btn btn-primario" href="/portal?alta=estudiante#registro">
           Regístrate con tu correo de estudiante
         </a>
