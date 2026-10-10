@@ -1,8 +1,8 @@
 import { EditableFileActions } from "@/components/editable-file";
 import { consumeRtf, releaseRtf } from "@/lib/accounts";
 import { currentUser } from "@/lib/session";
+import { searchTerms, splitHighlighted, type CriterionHit } from "@/lib/pdf-text";
 import { parseTranscriptRequest, prepareTranscript } from "@/lib/transcript";
-import type { CriterionHit } from "@/lib/pdf-text";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -36,6 +36,7 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
   try {
     const ready = await prepareTranscript(parsed.request);
     const marked = new Set(ready.hits.flatMap((hit) => hit.pages));
+    const terms = searchTerms(parsed.request);
     const total = ready.pages.length;
     return (
       <main className="envoltura ancha">
@@ -94,7 +95,9 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
                 </summary>
                 <div className="cuerpo">
                   <small>Parte resolutiva del PDF. No es la sumilla del MEF.</small>
-                  <p>{ready.resumen}</p>
+                  <p>
+                    <Marked text={ready.resumen} terms={terms} />
+                  </p>
                 </div>
               </details>
               <div className="solo-descarga">
@@ -130,11 +133,15 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
                           <img alt={`Tabla de la página ${page.page}`} src={block.image} />
                           <details className="tabla-txt">
                             <summary>Texto de esta tabla para Buscar</summary>
-                            <p>{block.text}</p>
+                            <p>
+                              <Marked text={block.text} terms={terms} />
+                            </p>
                           </details>
                         </figure>
                       ) : (
-                        <p key={`${page.page}-p-${index}`}>{block.text}</p>
+                        <p key={`${page.page}-p-${index}`}>
+                          <Marked text={block.text} terms={terms} />
+                        </p>
                       ),
                     )}
                   </section>
@@ -157,6 +164,12 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
     const message = error instanceof Error ? error.message : "No pude leer las páginas del PDF. Ábrelo en el MEF.";
     return <Notice message={message} />;
   }
+}
+
+function Marked({ text, terms }: { text: string; terms: string[] }) {
+  return splitHighlighted(text, terms).map((piece, index) =>
+    piece.hit ? <mark key={index}>{piece.text}</mark> : piece.text,
+  );
 }
 
 function Criteria({ hits }: { hits: CriterionHit[] }) {

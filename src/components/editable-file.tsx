@@ -13,6 +13,7 @@ export function EditableFileActions({ filename }: { filename: string }) {
   body { font-family: Georgia, serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem 3rem; line-height: 1.6; color: #1c1915; }
   h2 { margin-top: 2rem; }
   p { text-align: justify; }
+  mark { background: #ffe566; color: inherit; padding: 0 0.08em; border-radius: 0.12em; }
   img { display: block; margin: 1rem auto; max-width: 100%; }
   summary { cursor: pointer; display: inline-block; border: 1px solid #1c1915; border-radius: 999px; padding: 0.55rem 0.9rem; }
   .solo-descarga { display: block; }

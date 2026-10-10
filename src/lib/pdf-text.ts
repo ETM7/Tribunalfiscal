@@ -40,9 +40,15 @@ export type TranscriptInput = {
   sumillaUrl: string | null;
   pages: PdfPage[];
   hits: CriterionHit[];
+  terms: string[];
   truncated: boolean;
   signatureImage: string | null;
   resumen: string;
+};
+
+export type TextPiece = {
+  text: string;
+  hit: boolean;
 };
 
 export function foldForSearch(value: string): string {
@@ -53,6 +59,33 @@ export function foldForSearch(value: string): string {
     .replace(/[^a-z0-9]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/** Palabras del criterio, sin tildes y sin las de una o dos letras (no, de, la). */
+export function searchTerms(criteria: { exacta: string; todas: string; cerca: string }): string[] {
+  const words = [criteria.exacta, criteria.todas, criteria.cerca]
+    .flatMap((value) => foldForSearch(value).split(" "))
+    .filter((word) => word.length > 2);
+  return [...new Set(words)];
+}
+
+export function splitHighlighted(text: string, terms: string[]): TextPiece[] {
+  if (!text) return [];
+  const wanted = new Set(terms.filter((term) => term.length > 2));
+  if (wanted.size === 0) return [{ text, hit: false }];
+  const pieces: TextPiece[] = [];
+  const re = /[\p{L}\p{N}]+/gu;
+  let last = 0;
+  for (const match of text.matchAll(re)) {
+    const start = match.index ?? 0;
+    const word = match[0];
+    if (start > last) pieces.push({ text: text.slice(last, start), hit: false });
+    const folded = foldForSearch(word);
+    pieces.push({ text: word, hit: folded.length > 2 && wanted.has(folded) });
+    last = start + word.length;
+  }
+  if (last < text.length) pieces.push({ text: text.slice(last), hit: false });
+  return pieces.length > 0 ? pieces : [{ text, hit: false }];
 }
 
 export function locateCriteria(
@@ -133,8 +166,8 @@ export function buildEditableHtml(input: TranscriptInput): string {
       const body = page.blocks
         .map((block) =>
           block.type === "table"
-            ? `<figure><img alt="Tabla de la página ${page.page}" src="${block.image}"><details><summary>Texto de esta tabla para Buscar</summary><p>${escapeHtml(block.text)}</p></details></figure>`
-            : `<p>${escapeHtml(block.text)}</p>`
+            ? `<figure><img alt="Tabla de la página ${page.page}" src="${block.image}"><details><summary>Texto de esta tabla para Buscar</summary><p>${highlightHtml(block.text, input.terms)}</p></details></figure>`
+            : `<p>${highlightHtml(block.text, input.terms)}</p>`
         )
         .join("\n");
       return `<section><h2>Página ${page.page}${escapeHtml(note)}</h2>${header}${body}</section>`;
@@ -160,6 +193,7 @@ export function buildEditableHtml(input: TranscriptInput): string {
   p { text-align: justify; }
   img { display: block; margin: 1rem auto; max-width: 100%; }
   a { color: #8c2f2f; }
+  mark { background: #ffe566; color: inherit; padding: 0 0.08em; border-radius: 0.12em; }
 </style>
 </head>
 <body>
@@ -172,7 +206,7 @@ export function buildEditableHtml(input: TranscriptInput): string {
 <p>${sumilla}. La sumilla no es una página de este PDF.</p>
 <details>
   <summary class="boton">Resumen del PDF</summary>
-  <p>${escapeHtml(input.resumen)}</p>
+  <p>${highlightHtml(input.resumen, input.terms)}</p>
 </details>
 <ul>${criterion}</ul>
 ${input.truncated ? `<p>Solo se leyeron las primeras ${MAX_PAGES} páginas.</p>` : ""}
@@ -194,6 +228,12 @@ document.getElementById("descargar").addEventListener("click", function () {
 </script>
 </body>
 </html>`;
+}
+
+function highlightHtml(text: string, terms: string[]): string {
+  return splitHighlighted(text, terms)
+    .map((piece) => (piece.hit ? `<mark>${escapeHtml(piece.text)}</mark>` : escapeHtml(piece.text)))
+    .join("");
 }
 
 function escapeHtml(value: string): string {

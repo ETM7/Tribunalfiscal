@@ -1,4 +1,4 @@
-import { buildEditableHtml, buildPdfTranscript, locateCriteria, readPdfPages, type CriterionHit, type PdfPage } from "@/lib/pdf-text";
+import { buildEditableHtml, buildPdfTranscript, locateCriteria, readPdfPages, searchTerms, type CriterionHit, type PdfPage } from "@/lib/pdf-text";
 import { isExpedienteId, pdfFileUrl } from "@/lib/search-query";
 
 const MAX_BYTES = 12_000_000;
@@ -100,6 +100,7 @@ export async function prepareTranscript(request: TranscriptRequest): Promise<Pre
       sumillaUrl: request.sumillaUrl,
       pages: read.pages,
       hits,
+      terms: searchTerms(request),
       truncated: read.truncated,
       signatureImage: read.signatureImage,
       resumen: read.resumen,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildEditableHtml, buildPdfTranscript, foldForSearch, locateCriteria, pagesFromTextLayer, textLayerIsUsable } from "./pdf-text";
+import { buildEditableHtml, buildPdfTranscript, foldForSearch, locateCriteria, pagesFromTextLayer, searchTerms, splitHighlighted, textLayerIsUsable } from "./pdf-text";
 
 test("la frase admite un número entre Decisión y 578", () => {
   const pages = [
@@ -30,6 +30,7 @@ test("el documento separa la sumilla del texto por página", () => {
     sumillaUrl: "https://apps4.mineco.gob.pe/ServiciosTF/Sumilla.htm?valor=2019011221",
     pages: [{ page: 5, text: "Decisión 578", headerImage: null, blocks: [{ type: "p", text: "Decisión 578" }] }],
     hits: [{ label: "Frase «decisión 578»", pages: [5] }],
+    terms: searchTerms({ exacta: "decisión 578", todas: "", cerca: "" }),
     truncated: false,
     signatureImage: null,
     resumen: "Confirmar la apelada.",
@@ -53,6 +54,7 @@ test("el html editable escapa el texto y deja Buscar en el navegador", () => {
       },
     ],
     hits: [{ label: "Frase «decisión 578»", pages: [3] }],
+    terms: searchTerms({ exacta: "decisión 578", todas: "no domiciliados", cerca: "" }),
     truncated: false,
     signatureImage: null,
     resumen: "Declarar infundada la solicitud.",
@@ -63,7 +65,18 @@ test("el html editable escapa el texto y deja Buscar en el navegador", () => {
   assert.match(html, /Resumen del PDF/);
   assert.match(html, /text-align: justify/);
   assert.equal(html.includes("Decisión 578 <script>"), false);
-  assert.match(html, /Decisión 578 &lt;script&gt;/);
+  assert.match(html, /<mark>Decisión<\/mark> <mark>578<\/mark> &lt;script&gt;/);
+  assert.equal(html.includes("<mark>script</mark>"), false);
+});
+
+test("el resaltado amarillo sigue la palabra aunque cambie la tilde y omite no", () => {
+  const terms = searchTerms({ exacta: "decisión 578", todas: "no domiciliados", cerca: "" });
+  assert.deepEqual(terms, ["decision", "578", "domiciliados"]);
+  const pieces = splitHighlighted("Retenciones de No Domiciliados según la Decisión N° 578.", terms);
+  assert.deepEqual(
+    pieces.filter((piece) => piece.hit).map((piece) => piece.text),
+    ["Domiciliados", "Decisión", "578"]
+  );
 });
 
 test("un escaneo sin capa de texto no se toma como texto", () => {

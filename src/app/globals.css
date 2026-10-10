@@ -848,6 +848,15 @@ a.btn-primario {
   color: #24201b;
 }
 
+.pagina mark,
+.resumen mark {
+  background: #ffe566;
+  color: inherit;
+  padding: 0 0.08em;
+  border-radius: 0.12em;
+  animation: none;
+}
+
 .pagina figure {
   margin: 1.25rem auto;
   max-width: 30rem;
