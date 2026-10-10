@@ -773,14 +773,9 @@ a.btn-primario {
   font-variant-numeric: tabular-nums;
 }
 
-::highlight(rtf-hit) {
-  background-color: #ffe566;
-  color: #1c1915;
-}
-
-::highlight(rtf-current) {
-  background-color: #f0b429;
-  color: #1c1915;
+.pagina mark.rtf-actual {
+  background: #f0b429;
+  box-shadow: 0 0 0 2px #e0a020;
 }
 
 .criterios {

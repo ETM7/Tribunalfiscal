@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { phraseSpans } from "@/lib/pdf-text";
+import { phraseSpans } from "@/lib/text-search";
 
 const ARTICLE_ID = "texto-resolucion";
 
@@ -13,29 +13,36 @@ export function ResolutionFinder({ initialQuery }: { initialQuery: string }) {
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    show(initialQuery, 0, false);
-    return () => paint([], -1);
+    const marks = show(initialQuery, 0, false);
+    return () => {
+      const root = document.getElementById(ARTICLE_ID);
+      if (root) clearSearchMarks(root);
+      else marks.forEach((mark) => mark.replaceWith(...mark.childNodes));
+    };
     // La frase inicial se busca una vez, cuando el texto ya está en la página.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function show(nextQuery: string, nextIndex: number, smooth: boolean) {
+  function show(nextQuery: string, nextIndex: number, smooth: boolean): HTMLElement[] {
     const root = document.getElementById(ARTICLE_ID);
     if (!root) {
       setTotal(0);
       setAt(0);
-      paint([], -1);
-      return;
+      return [];
     }
+    clearSearchMarks(root);
     const { text, pieces } = collect(root);
     const ranges = phraseSpans(text, nextQuery)
       .map((span) => rangeFor(pieces, span.start, span.end))
       .filter((range): range is Range => Boolean(range));
     const index = ranges.length === 0 ? 0 : ((nextIndex % ranges.length) + ranges.length) % ranges.length;
-    paint(ranges, ranges.length === 0 ? -1 : index);
-    if (ranges[index]) scrollTo(ranges[index], smooth);
+    const groups = wrapMatches(ranges);
+    const current = groups[index] ?? [];
+    for (const mark of current) mark.classList.add("rtf-actual");
+    current[0]?.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
     setTotal(ranges.length);
     setAt(ranges.length === 0 ? 0 : index);
+    return current;
   }
 
   function go(event: FormEvent) {
@@ -135,15 +142,50 @@ function pointAt(pieces: Piece[], index: number): { node: Text; offset: number }
   return null;
 }
 
-function paint(ranges: Range[], current: number) {
-  const api = CSS.highlights;
-  if (!api) return;
-  api.set("rtf-hit", new Highlight(...ranges));
-  api.set("rtf-current", current >= 0 && ranges[current] ? new Highlight(ranges[current]) : new Highlight());
+function clearSearchMarks(root: HTMLElement) {
+  for (const mark of root.querySelectorAll("mark.rtf-hit")) {
+    mark.replaceWith(...mark.childNodes);
+  }
+  root.normalize();
 }
 
-function scrollTo(range: Range, smooth: boolean) {
-  const node = range.startContainer;
-  const element = node instanceof Element ? node : node.parentElement;
-  element?.scrollIntoView({ block: "center", behavior: smooth ? "smooth" : "auto" });
+function wrapMatches(ranges: Range[]): HTMLElement[][] {
+  const groups: HTMLElement[][] = [];
+  for (let index = ranges.length - 1; index >= 0; index -= 1) {
+    const slices = textSlices(ranges[index]);
+    const marks: HTMLElement[] = [];
+    for (let sliceIndex = slices.length - 1; sliceIndex >= 0; sliceIndex -= 1) {
+      const mark = document.createElement("mark");
+      mark.className = "rtf-hit";
+      slices[sliceIndex].surroundContents(mark);
+      marks.push(mark);
+    }
+    marks.reverse();
+    groups.push(marks);
+  }
+  groups.reverse();
+  return groups;
+}
+
+function textSlices(range: Range): Range[] {
+  if (range.startContainer === range.endContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+    return [range];
+  }
+  const slices: Range[] = [];
+  const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    if (node.nodeValue && range.intersectsNode(node)) {
+      const slice = document.createRange();
+      const start = node === range.startContainer ? range.startOffset : 0;
+      const end = node === range.endContainer ? range.endOffset : node.nodeValue.length;
+      if (end > start) {
+        slice.setStart(node, start);
+        slice.setEnd(node, end);
+        slices.push(slice);
+      }
+    }
+    node = walker.nextNode();
+  }
+  return slices;
 }
