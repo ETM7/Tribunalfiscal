@@ -15,6 +15,7 @@ export function EditableFileActions({ filename }: { filename: string }) {
   p { text-align: justify; }
   img { display: block; margin: 1rem auto; max-width: 100%; }
   summary { cursor: pointer; display: inline-block; border: 1px solid #1c1915; border-radius: 999px; padding: 0.55rem 0.9rem; }
+  .solo-descarga { display: block; }
 </style>
 </head>
 <body>
@@ -31,7 +32,7 @@ ${body}
   }
 
   return (
-    <button type="button" className="secondary mt-4" onClick={download}>
+    <button type="button" className="btn btn-primario" onClick={download}>
       Descargar archivo editable
     </button>
   );

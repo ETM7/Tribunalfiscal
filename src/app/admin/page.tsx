@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { assignPlanAction, confirmPaymentAction, createUserAction, resetUsageAction } from "@/app/admin/actions";
+import { confirmPaymentAction, createUserAction } from "@/app/admin/actions";
+import { AdminPeople } from "@/components/admin-people";
 import { listUsers } from "@/lib/accounts";
 import { PLAN_ORDER, PLANS, priceLabel } from "@/lib/plans";
 import { currentUser } from "@/lib/session";
@@ -19,115 +20,106 @@ export default async function AdminPage({ searchParams }: AdminProps) {
   const params = await searchParams;
   const aviso = first(params.aviso).slice(0, 300);
   const users = await listUsers();
+  const pending = users.filter((account) => account.pendingPlan);
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
-      <header>
-        <p className="text-xs font-semibold tracking-[0.16em] text-[var(--seal)] uppercase">Administración</p>
-        <h1 className="mt-2 font-serif text-4xl text-[var(--ink)]">Cuentas y planes</h1>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-[var(--muted)]">
+    <main className="envoltura">
+      <div className="app-cab">
+        <span className="rotulo">Administración</span>
+        <h1>Cuentas y planes</h1>
+        <p>
           Asigna el plan cuando el pago esté confirmado. Esta pantalla no cobra la tarjeta. El cupo
           del RTF editable se reinicia solo cada mes, en hora de Lima, o cuando lo pongas en cero.
         </p>
-      </header>
+      </div>
 
       {aviso ? (
-        <p className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-sm" role="status">
+        <p className="aviso" role="status" style={{ marginBottom: "1.25rem" }}>
           {aviso}
         </p>
       ) : null}
 
-      <form action={createUserAction} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-5">
-        <h2 className="font-serif text-2xl">Nueva cuenta</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-semibold">Nombre</span>
-            <input name="nombre" required className="field" />
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-semibold">Correo</span>
-            <input name="email" type="email" required className="field" />
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-semibold">Contraseña inicial</span>
-            <input name="password" type="text" minLength={8} required className="field" autoComplete="off" />
-            <span className="text-[var(--muted)]">Queda visible para que puedas entregarla.</span>
-          </label>
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-semibold">Plan</span>
-            <select name="plan" className="field" defaultValue="junior">
-              {PLAN_ORDER.map((id) => (
-                <option key={id} value={id}>
-                  {PLANS[id].name} · {priceLabel(PLANS[id])}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input name="rol" type="checkbox" value="admin" />
-            También es administrador
-          </label>
-          <button type="submit" className="primary sm:col-span-2 sm:w-fit">
-            Crear cuenta
-          </button>
-        </div>
-      </form>
+      <nav className="admin-tabs" aria-label="Secciones">
+        <a href="#pagos" className={pending.length ? "on" : undefined}>
+          Pagos por confirmar <span className="cnt">{pending.length}</span>
+        </a>
+        <a href="#personas" className={pending.length ? undefined : "on"}>
+          Personas
+        </a>
+        <a href="#nueva">Nueva cuenta</a>
+      </nav>
 
-      <section className="grid gap-3">
-        <h2 className="font-serif text-2xl">Personas</h2>
-        <ul className="grid gap-3">
-          {users.map((account) => (
-            <li key={account.id} className="rounded-2xl border border-[var(--line)] bg-white p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-semibold">{account.name}</h3>
-                <p className="text-sm text-[var(--muted)]">{account.role === "admin" ? "Administrador" : "Cuenta"}</p>
+      <div className="bandeja" id="pagos">
+        {pending.length === 0 ? (
+          <p className="panel" style={{ textAlign: "center", color: "var(--sec)" }}>
+            No hay pagos por confirmar. Las nuevas solicitudes aparecerán aquí.
+          </p>
+        ) : (
+          pending.map((account) => (
+            <article key={account.id} className="pago">
+              <div className="pago-info">
+                <h3>{account.name}</h3>
+                <div className="mail">{account.email}</div>
+                <div className="cambio">
+                  <span className="de">{PLANS[account.plan].name}</span>
+                  <span aria-hidden="true">→</span>
+                  <span className="a">{PLANS[account.pendingPlan!].name}</span>
+                  <span>· {priceLabel(PLANS[account.pendingPlan!])}</span>
+                </div>
               </div>
-              <p className="mt-1 text-sm break-all">{account.email}</p>
-              <p className="mt-2 text-sm leading-6">
-                Plan {PLANS[account.plan].name}. Consultas al RTF este mes: {account.rtfOpens}
-                {PLANS[account.plan].rtfLimit === null ? " · sin límite" : ` de ${PLANS[account.plan].rtfLimit}`}.
-              </p>
-              {account.pendingPlan ? (
-                <p className="mt-2 text-sm text-[var(--seal)]">
-                  Pidió {PLANS[account.pendingPlan].name} · {priceLabel(PLANS[account.pendingPlan])}.
-                </p>
-              ) : null}
-              <div className="mt-4 flex flex-wrap items-end gap-3">
-                <form action={assignPlanAction} className="flex flex-wrap items-end gap-2">
+              <div className="pago-acc">
+                <form action={confirmPaymentAction}>
                   <input type="hidden" name="userId" value={account.id} />
-                  <label className="grid gap-1 text-sm">
-                    <span className="font-semibold">Asignar plan</span>
-                    <select name="plan" className="field" defaultValue={account.pendingPlan ?? account.plan}>
-                      {PLAN_ORDER.map((id) => (
-                        <option key={id} value={id}>
-                          {PLANS[id].name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button type="submit" className="secondary">
-                    Guardar plan
-                  </button>
-                </form>
-                {account.pendingPlan ? (
-                  <form action={confirmPaymentAction}>
-                    <input type="hidden" name="userId" value={account.id} />
-                    <button type="submit" className="primary">
-                      Confirmar pago
-                    </button>
-                  </form>
-                ) : null}
-                <form action={resetUsageAction}>
-                  <input type="hidden" name="userId" value={account.id} />
-                  <button type="submit" className="secondary">
-                    Reiniciar cupo
+                  <button type="submit" className="btn btn-primario btn-chico">
+                    Confirmar pago
                   </button>
                 </form>
               </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+            </article>
+          ))
+        )}
+      </div>
+
+      <div className="admin-grid">
+        <form action={createUserAction} className="panel" id="nueva">
+          <h2 className="t2">Nueva cuenta</h2>
+          <p className="sub">Para quien pagó por fuera del portal.</p>
+          <div className="form-grid">
+            <div className="campo">
+              <label htmlFor="n-nom">Nombre</label>
+              <input id="n-nom" name="nombre" required className="inp" />
+            </div>
+            <div className="campo">
+              <label htmlFor="n-mail">Correo</label>
+              <input id="n-mail" name="email" type="email" required className="inp" />
+            </div>
+            <div className="campo">
+              <label htmlFor="n-pass">Contraseña inicial</label>
+              <input id="n-pass" name="password" type="text" minLength={8} required className="inp" autoComplete="off" />
+              <p className="ayuda">Queda visible para que puedas entregarla.</p>
+            </div>
+            <div className="campo">
+              <label htmlFor="n-plan">Plan</label>
+              <select id="n-plan" name="plan" className="inp" defaultValue="junior">
+                {PLAN_ORDER.map((id) => (
+                  <option key={id} value={id}>
+                    {PLANS[id].name} · {priceLabel(PLANS[id])}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <label className="check">
+              <input name="rol" type="checkbox" value="admin" />
+              También es administrador
+            </label>
+            <button type="submit" className="btn btn-primario">
+              Crear cuenta
+            </button>
+          </div>
+        </form>
+
+        <AdminPeople users={users} />
+      </div>
     </main>
   );
 }

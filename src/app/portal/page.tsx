@@ -1,6 +1,6 @@
 import { changePasswordAction, loginAction, registerAction, requestPlanAction } from "@/app/portal/actions";
 import { currentUser } from "@/lib/session";
-import { PLAN_ORDER, PLANS, priceLabel } from "@/lib/plans";
+import { PLAN_ORDER, PLANS, priceLabel, type Plan } from "@/lib/plans";
 
 export const runtime = "nodejs";
 
@@ -15,78 +15,106 @@ export default async function PortalPage({ searchParams }: PortalProps) {
   const plan = user ? PLANS[user.plan] : null;
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-8 sm:px-6">
-      <header>
-        <p className="text-xs font-semibold tracking-[0.16em] text-[var(--seal)] uppercase">Portal</p>
-        <h1 className="mt-2 font-serif text-4xl text-[var(--ink)]">Tu cuenta</h1>
-        <p className="mt-3 max-w-3xl text-base leading-7 text-[var(--muted)]">
+    <main className="envoltura">
+      <div className="app-cab">
+        <span className="rotulo">Portal</span>
+        <h1>Tu cuenta</h1>
+        <p>
           Todos los planes pueden buscar. El botón Abrir RTF editable depende del plan. Aquí no se
           cobra la tarjeta: solicitas el plan y el administrador lo activa cuando confirma el pago.
         </p>
-      </header>
+      </div>
 
       {aviso ? (
-        <p className="rounded-xl border border-[var(--line)] bg-[var(--paper)] px-4 py-3 text-sm" role="status">
+        <p className="aviso" role="status" style={{ marginBottom: "1.25rem" }}>
           {aviso}
         </p>
       ) : null}
 
       {user && plan ? (
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-5">
-          <h2 className="font-serif text-2xl">Plan {plan.name}</h2>
-          <p className="mt-2 text-sm leading-6">
-            {user.name} · {user.email}
-          </p>
-          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{plan.summary}</p>
-          <p className="mt-3 text-sm leading-6">
-            Consultas al RTF editable este mes: {user.rtfOpens}
-            {plan.rtfLimit === null ? " · sin límite" : ` de ${plan.rtfLimit}`}. Cada resolución distinta
-            cuenta una vez. Volver a abrirla no gasta otra. El mes se cuenta en hora de Lima.
+        <section className="panel">
+          <div className="cuenta">
+            <div>
+              <span className="rotulo">Plan actual</span>
+              <div className="plan-nom">{plan.name}</div>
+              <p className="quien-es">
+                {user.name} · {user.email}
+              </p>
+              <p className="quien-es" style={{ marginTop: "0.4rem" }}>
+                {plan.summary}
+              </p>
+            </div>
+            <Cupo used={user.rtfOpens} limit={plan.rtfLimit} />
+          </div>
+          <p className="regla-cupo">
+            Cada resolución distinta cuenta una vez. Volver a abrirla no gasta otra. El mes se cuenta en
+            hora de Lima.
           </p>
           {user.pendingPlan ? (
-            <p className="mt-3 text-sm text-[var(--seal)]">
-              Tienes una solicitud pendiente del plan {PLANS[user.pendingPlan].name}. Sigue activo{" "}
-              {plan.name} hasta que administración confirme el pago.
-            </p>
+            <div className="pendiente">
+              <span className="ic" aria-hidden="true">
+                …
+              </span>
+              <p>
+                <strong>
+                  Solicitaste {PLANS[user.pendingPlan].name} ({priceLabel(PLANS[user.pendingPlan])}).
+                </strong>{" "}
+                Sigue activo {plan.name} hasta que administración confirme el pago.
+              </p>
+            </div>
           ) : null}
         </section>
       ) : (
-        <section id="entrar" className="grid gap-4 lg:grid-cols-2">
-          <form action={loginAction} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-5">
-            <h2 className="font-serif text-2xl">Entrar</h2>
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-1.5 text-sm">
-                <span className="font-semibold">Correo</span>
-                <input name="email" type="email" autoComplete="username" required className="field" />
-              </label>
-              <label className="grid gap-1.5 text-sm">
-                <span className="font-semibold">Contraseña</span>
-                <input name="password" type="password" autoComplete="current-password" required className="field" />
-              </label>
-              <button type="submit" className="primary">
+        <section id="entrar" className="portal-grid">
+          <form action={loginAction} className="panel">
+            <h2 className="t2">Entrar</h2>
+            <p className="sub">Con el correo de tu cuenta.</p>
+            <div className="form-grid">
+              <div className="campo">
+                <label htmlFor="login-email">Correo</label>
+                <input id="login-email" name="email" type="email" autoComplete="username" required className="inp" />
+              </div>
+              <div className="campo">
+                <label htmlFor="login-password">Contraseña</label>
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  className="inp"
+                />
+              </div>
+              <button type="submit" className="btn btn-primario">
                 Entrar
               </button>
             </div>
           </form>
-          <form action={registerAction} className="rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-5">
-            <h2 className="font-serif text-2xl">Crear cuenta Junior</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-              Es gratis. Puedes buscar enseguida. El RTF editable se abre desde Senior.
-            </p>
-            <div className="mt-4 grid gap-3">
-              <label className="grid gap-1.5 text-sm">
-                <span className="font-semibold">Nombre</span>
-                <input name="nombre" autoComplete="name" required className="field" />
-              </label>
-              <label className="grid gap-1.5 text-sm">
-                <span className="font-semibold">Correo</span>
-                <input name="email" type="email" autoComplete="email" required className="field" />
-              </label>
-              <label className="grid gap-1.5 text-sm">
-                <span className="font-semibold">Contraseña</span>
-                <input name="password" type="password" autoComplete="new-password" minLength={8} required className="field" />
-              </label>
-              <button type="submit" className="primary">
+          <form action={registerAction} className="panel">
+            <h2 className="t2">Crear cuenta Junior</h2>
+            <p className="sub">Es gratis. Puedes buscar enseguida. El RTF editable se abre desde Senior.</p>
+            <div className="form-grid">
+              <div className="campo">
+                <label htmlFor="reg-nombre">Nombre</label>
+                <input id="reg-nombre" name="nombre" autoComplete="name" required className="inp" />
+              </div>
+              <div className="campo">
+                <label htmlFor="reg-email">Correo</label>
+                <input id="reg-email" name="email" type="email" autoComplete="email" required className="inp" />
+              </div>
+              <div className="campo">
+                <label htmlFor="reg-password">Contraseña</label>
+                <input
+                  id="reg-password"
+                  name="password"
+                  type="password"
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                  className="inp"
+                />
+              </div>
+              <button type="submit" className="btn btn-primario">
                 Crear cuenta
               </button>
             </div>
@@ -94,56 +122,109 @@ export default async function PortalPage({ searchParams }: PortalProps) {
         </section>
       )}
 
-      <section className="grid gap-3">
-        <h2 className="font-serif text-2xl">Planes</h2>
-        <ul className="grid gap-3 sm:grid-cols-2">
+      <section>
+        <div className="cab-sec">
+          <span className="rotulo">Planes</span>
+          <h2>Cambia de plan cuando lo necesites.</h2>
+        </div>
+        <div className="planes-p">
           {PLAN_ORDER.map((id) => {
             const item = PLANS[id];
             const current = user?.plan === id;
+            const pending = user?.pendingPlan === id;
             return (
-              <li key={id} className="flex flex-col rounded-2xl border border-[var(--line)] bg-white p-4">
-                <div className="flex items-baseline justify-between gap-3">
-                  <h3 className="font-serif text-xl">{item.name}</h3>
-                  <p className="text-sm font-semibold">{priceLabel(item)}</p>
+              <article key={id} className={current ? "plan-p actual" : "plan-p"}>
+                <div className="top">
+                  <h3>{item.name}</h3>
+                  <span className="pr">{priceLabel(item)}</span>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted)]">{item.summary}</p>
-                {current ? <p className="mt-3 text-sm font-semibold text-[var(--seal)]">Plan actual</p> : null}
-                {user?.pendingPlan === id ? (
-                  <p className="mt-2 text-sm text-[var(--seal)]">Solicitud pendiente</p>
-                ) : null}
-                {user && !current ? (
-                  <form action={requestPlanAction} className="mt-4">
-                    <input type="hidden" name="plan" value={id} />
-                    <button type="submit" className="secondary">
-                      Solicitar este plan
-                    </button>
-                  </form>
-                ) : null}
-              </li>
+                <p>{item.summary}</p>
+                <div className="pie-p">
+                  {current ? <span className="etq">Plan actual</span> : null}
+                  {pending ? <span className="etq pend">Solicitud pendiente</span> : null}
+                  {user && !current ? (
+                    <form action={requestPlanAction}>
+                      <input type="hidden" name="plan" value={id} />
+                      <button type="submit" className="btn btn-secundario btn-chico">
+                        Solicitar este plan
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              </article>
             );
           })}
-        </ul>
+        </div>
       </section>
 
       {user ? (
-        <form action={changePasswordAction} className="max-w-md rounded-2xl border border-[var(--line)] bg-[var(--paper)] p-5">
-          <h2 className="font-serif text-2xl">Cambiar contraseña</h2>
-          <div className="mt-4 grid gap-3">
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-semibold">Contraseña actual</span>
-              <input name="actual" type="password" autoComplete="current-password" required className="field" />
-            </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-semibold">Contraseña nueva</span>
-              <input name="nueva" type="password" autoComplete="new-password" minLength={8} required className="field" />
-            </label>
-            <button type="submit" className="secondary">
+        <form action={changePasswordAction} className="panel bloque-cuenta">
+          <h2 className="t2">Cambiar contraseña</h2>
+          <div className="form-grid" style={{ marginTop: "1rem" }}>
+            <div className="campo">
+              <label htmlFor="pass-actual">Contraseña actual</label>
+              <input
+                id="pass-actual"
+                name="actual"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="inp"
+              />
+            </div>
+            <div className="campo">
+              <label htmlFor="pass-nueva">Contraseña nueva</label>
+              <input
+                id="pass-nueva"
+                name="nueva"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                className="inp"
+              />
+            </div>
+            <button type="submit" className="btn btn-secundario">
               Guardar contraseña
             </button>
           </div>
         </form>
       ) : null}
     </main>
+  );
+}
+
+function Cupo({ used, limit }: { used: number; limit: Plan["rtfLimit"] }) {
+  if (limit === null) {
+    return (
+      <div className="medidor">
+        <div className="cifra">
+          {used}
+          <small>este mes</small>
+        </div>
+        <p className="lbl">consultas al RTF editable · sin límite</p>
+      </div>
+    );
+  }
+
+  const remaining = Math.max(0, limit - used);
+  const ticks = limit === 0 ? 1 : Math.min(limit, 24);
+  const filled = limit === 0 ? 0 : Math.round((Math.min(used, limit) / limit) * ticks);
+
+  return (
+    <div className="medidor">
+      <div className="cifra">
+        {used}
+        <small>de {limit}</small>
+      </div>
+      <p className="lbl">consultas al RTF editable este mes</p>
+      <div className="barra-cupo" aria-hidden="true">
+        {Array.from({ length: ticks }, (_, index) => (
+          <i key={index} className={index < filled ? "u" : undefined} />
+        ))}
+      </div>
+      <p className="renueva">Te quedan {remaining}. El mes se cuenta en hora de Lima.</p>
+    </div>
   );
 }
 

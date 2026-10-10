@@ -4,28 +4,38 @@ import { PLANS } from "@/lib/plans";
 
 export function SiteHeader({ user }: { user: PublicUser | null }) {
   return (
-    <div className="topbar">
-      <a className="marca" href="/">
-        Tribunal Fiscal
-      </a>
-      <nav>
-        {user ? (
-          <span className="text-sm text-[var(--muted)]">
-            {user.name} · {PLANS[user.plan].name}
-          </span>
-        ) : (
-          <span className="text-sm text-[var(--muted)]">Sin sesión</span>
-        )}
-        <a href="/portal">Portal</a>
-        {user?.role === "admin" ? <a href="/admin">Administración</a> : null}
-        {user ? (
-          <form action={logoutAction}>
-            <button type="submit" className="linkish">
-              Salir
-            </button>
-          </form>
-        ) : null}
-      </nav>
-    </div>
+    <header className="barra">
+      <div className="envoltura">
+        <a className="marca" href="/">
+          <span className="punto" aria-hidden="true" />
+          Tribunal Fiscal
+        </a>
+        <nav className="nav" aria-label="Principal">
+          <a href="/" className="ocultable">
+            Inicio
+          </a>
+          {user ? (
+            <span className="estado-sesion ocultable">
+              {user.name} · {PLANS[user.plan].name}
+            </span>
+          ) : (
+            <a href="/portal">Entrar</a>
+          )}
+          {user ? <a href="/portal">Portal</a> : null}
+          {user?.role === "admin" ? <a href="/admin">Administración</a> : null}
+          {user ? (
+            <form action={logoutAction}>
+              <button type="submit" className="linkish">
+                Salir
+              </button>
+            </form>
+          ) : (
+            <a className="btn btn-primario btn-chico" href="/portal">
+              Crear cuenta<span className="txt-largo"> gratis</span>
+            </a>
+          )}
+        </nav>
+      </div>
+    </header>
   );
 }

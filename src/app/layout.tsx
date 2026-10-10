@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
+import { Source_Code_Pro, Source_Sans_3, Source_Serif_4 } from "next/font/google";
 import { SiteHeader } from "@/components/site-header";
 import { ensureAdmin } from "@/lib/accounts";
 import { currentUser } from "@/lib/session";
@@ -15,8 +15,13 @@ const serif = Source_Serif_4({
   subsets: ["latin"],
 });
 
+const mono = Source_Code_Pro({
+  variable: "--font-source-mono",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
-  title: "Jurisprudencia del Tribunal Fiscal",
+  title: "Tribunal Fiscal · Jurisprudencia",
   description:
     "Búsqueda puntual en el formulario público del Tribunal Fiscal del Perú. Muestra la sumilla de la página que pides.",
 };
@@ -27,10 +32,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   await ensureAdmin();
   const user = await currentUser();
   return (
-    <html lang="es" className={`${sans.variable} ${serif.variable} h-full`}>
+    <html lang="es" className={`${sans.variable} ${serif.variable} ${mono.variable} h-full`}>
       <body className="min-h-full antialiased">
         <SiteHeader user={user} />
         {children}
+        <footer>
+          <div className="envoltura">
+            <span>Tribunal Fiscal · Herramienta independiente, no es un sitio del Estado.</span>
+            <nav aria-label="Pie">
+              <a href="/">Buscar</a>
+              <a href="/portal">Portal</a>
+            </nav>
+          </div>
+        </footer>
       </body>
     </html>
   );
