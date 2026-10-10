@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState, useSyncExternalStore } from "react
 import { searchAction } from "@/app/actions";
 import { initialSearchState } from "@/app/action-types";
 import type { SearchSuccess } from "@/lib/official-search";
+import type { RtfAccess } from "@/lib/plans";
 import {
   queryLabel,
   todayInLima,
@@ -88,7 +89,7 @@ function remember(query: SearchQuery, result: SearchSuccess) {
   }
 }
 
-export function SearchApp() {
+export function SearchApp({ rtf }: { rtf: RtfAccess }) {
   const [state, formAction, pending] = useActionState(searchAction, initialSearchState);
   const history = useSyncExternalStore(subscribe, readEntries, () => emptyEntries);
   const storageError = useSyncExternalStore(subscribe, readSaveError, () => "");
@@ -304,6 +305,7 @@ export function SearchApp() {
             pending={pending}
             formAction={formAction}
             onPaging={() => setReopened(null)}
+            rtf={rtf}
           />
         ) : null}
       </section>
@@ -353,11 +355,13 @@ function Results({
   pending,
   formAction,
   onPaging,
+  rtf,
 }: {
   view: { query: SearchQuery; result: SearchSuccess; saved: boolean };
   pending: boolean;
   formAction: (payload: FormData) => void;
   onPaging: () => void;
+  rtf: RtfAccess;
 }) {
   const { query, result, saved } = view;
   const range =
@@ -429,10 +433,12 @@ function Results({
         <ol className="grid gap-3">
           {result.results.map((item) => (
             <li key={`${item.id}-${item.sumillaUrl}`} className="rounded-2xl border border-[var(--line)] bg-white p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-mono text-lg text-[var(--ink)]">{item.id}</h3>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-base font-semibold tracking-wide text-[var(--ink)]">
+                  EXPEDIENTE: <span className="font-mono text-lg font-normal">{item.id}</span>
+                </h3>
                 {item.fichaUrl ? (
-                  <a href={item.fichaUrl} target="_blank" rel="noreferrer">
+                  <a className="secondary inline-block no-underline" href={item.fichaUrl} target="_blank" rel="noreferrer">
                     Ficha y PDF en el MEF
                   </a>
                 ) : (
@@ -456,7 +462,7 @@ function Results({
                   ) : null}
                 </p>
               )}
-              <PdfTranscript item={item} query={query} />
+              <PdfTranscript item={item} query={query} rtf={rtf} />
             </li>
           ))}
         </ol>
@@ -468,22 +474,36 @@ function Results({
 function PdfTranscript({
   item,
   query,
+  rtf,
 }: {
   item: SearchSuccess["results"][number];
   query: SearchQuery;
+  rtf: RtfAccess;
 }) {
   if (!item.pdfPath) return null;
   const href = lecturaHref(item, query);
 
   return (
     <div className="mt-3 border-t border-[var(--line)] pt-3">
-      <a className="secondary inline-block" href={href} target="_blank" rel="noreferrer">
-        Abrir texto editable
-      </a>
-      <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
-        Se abre en el navegador, con el texto justificado, el encabezado y las firmas. Ahí está el botón
-        Resumen del PDF y la descarga.
-      </p>
+      {rtf.allowed ? (
+        <a className="secondary inline-block no-underline" href={href} target="_blank" rel="noreferrer">
+          Abrir RTF editable
+        </a>
+      ) : (
+        <span className="secondary inline-block cursor-not-allowed opacity-60" aria-disabled="true">
+          Abrir RTF editable
+        </span>
+      )}
+      {rtf.allowed && rtf.remaining !== null ? (
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+          Te quedan {rtf.remaining} consultas al RTF editable este mes.
+        </p>
+      ) : null}
+      {!rtf.allowed ? (
+        <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+          {rtf.note} <a href="/portal">Ir al portal</a>
+        </p>
+      ) : null}
     </div>
   );
 }

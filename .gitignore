@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cuentas locales: contraseñas y secreto de sesión
+/data/*
+!/data/.gitkeep

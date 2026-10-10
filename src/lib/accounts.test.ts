@@ -1,0 +1,136 @@
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, test } from "node:test";
+import {
+  adminNotePath,
+  assignPlan,
+  confirmPendingPlan,
+  consumeRtf,
+  createUser,
+  ensureAdmin,
+  loginUser,
+  registerUser,
+  requestPlan,
+  resetUsage,
+} from "./accounts";
+
+describe("cuentas", { concurrency: false }, () => {
+  test("el alta entra en Junior y no abre el RTF", async () => {
+    const dir = await sandbox();
+    try {
+      const created = await registerUser({
+        email: "Ana@Ejemplo.pe",
+        name: "Ana Pérez",
+        password: "clave-junior",
+      });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+      assert.equal(created.value.plan, "junior");
+      assert.equal(created.value.email, "ana@ejemplo.pe");
+      const blocked = await consumeRtf(created.value.id, "2019_5_11125");
+      assert.equal(blocked.ok, false);
+      const again = await registerUser({ email: "ana@ejemplo.pe", name: "Ana Pérez", password: "clave-junior" });
+      assert.equal(again.ok, false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("Senior permite 20 resoluciones distintas al mes y el mes siguiente empieza de cero", async () => {
+    const dir = await sandbox();
+    try {
+      const created = await registerUser({ email: "senior@ejemplo.pe", name: "Luis Senior", password: "clave-senior" });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+      const january = new Date("2026-01-15T18:00:00Z");
+      const assigned = await assignPlan(created.value.id, "senior", january);
+      assert.equal(assigned.ok, true);
+      for (let index = 0; index < 20; index += 1) {
+        const opened = await consumeRtf(created.value.id, `2019_5_${index}`, january);
+        assert.equal(opened.ok, true);
+      }
+      const repeat = await consumeRtf(created.value.id, "2019_5_0", january);
+      assert.equal(repeat.ok, true);
+      if (repeat.ok) assert.equal(repeat.counted, false);
+      const blocked = await consumeRtf(created.value.id, "2019_5_extra", january);
+      assert.equal(blocked.ok, false);
+      const february = await consumeRtf(created.value.id, "2019_5_extra", new Date("2026-02-15T18:00:00Z"));
+      assert.equal(february.ok, true);
+      if (february.ok) assert.equal(february.remaining, 19);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("la solicitud de pago se activa desde administración y el cupo se puede reiniciar", async () => {
+    const dir = await sandbox();
+    try {
+      const created = await registerUser({ email: "pago@ejemplo.pe", name: "Nuria Pago", password: "clave-pago-1" });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+      const asked = await requestPlan(created.value.id, "gerente");
+      assert.equal(asked.ok, true);
+      const active = await confirmPendingPlan(created.value.id);
+      assert.equal(active.ok, true);
+      if (!active.ok) return;
+      assert.equal(active.value.plan, "gerente");
+      assert.equal(active.value.pendingPlan, null);
+      await consumeRtf(created.value.id, "2020_10_00975");
+      const reset = await resetUsage(created.value.id);
+      assert.equal(reset.ok, true);
+      if (reset.ok) assert.equal(reset.value.rtfOpens, 0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("el primer administrador queda en Socio y su clave no viaja en el código", async () => {
+    const dir = await sandbox();
+    try {
+      const first = await ensureAdmin();
+      const second = await ensureAdmin();
+      assert.equal(first.created, true);
+      assert.equal(second.created, false);
+      const note = await readFile(adminNotePath(), "utf8");
+      const password = note.match(/Contraseña: (\S+)/)?.[1];
+      assert.ok(password);
+      const session = await loginUser("admin@tribunalfiscal.pe", password || "");
+      assert.equal(session.ok, true);
+      if (!session.ok) return;
+      assert.equal(session.value.role, "admin");
+      assert.equal(session.value.plan, "socio");
+      const wrong = await loginUser("admin@tribunalfiscal.pe", "no-es-la-clave");
+      assert.equal(wrong.ok, false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("administración puede crear una cuenta en un plan de pago", async () => {
+    const dir = await sandbox();
+    try {
+      const created = await createUser({
+        email: "socio@ejemplo.pe",
+        name: "Eva Socio",
+        password: "clave-socio",
+        plan: "socio",
+        role: "user",
+      });
+      assert.equal(created.ok, true);
+      if (!created.ok) return;
+      const opened = await consumeRtf(created.value.id, "2019_5_11125");
+      assert.equal(opened.ok, true);
+      if (opened.ok) assert.equal(opened.remaining, null);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+async function sandbox(): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), "tf-cuentas-"));
+  process.env.TF_DATA_DIR = dir;
+  return dir;
+}

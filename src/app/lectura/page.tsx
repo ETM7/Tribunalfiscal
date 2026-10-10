@@ -1,4 +1,6 @@
 import { EditableFileActions } from "@/components/editable-file";
+import { consumeRtf, releaseRtf } from "@/lib/accounts";
+import { currentUser } from "@/lib/session";
 import { parseTranscriptRequest, prepareTranscript } from "@/lib/transcript";
 
 export const runtime = "nodejs";
@@ -20,13 +22,19 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
     return <Notice message={parsed.message} />;
   }
 
+  const viewer = await currentUser();
+  const gate = await consumeRtf(viewer?.id ?? null, parsed.request.id);
+  if (!gate.ok) {
+    return <Notice message={gate.message} actionHref="/portal" actionLabel="Ir al portal" />;
+  }
+
   try {
     const ready = await prepareTranscript(parsed.request);
     const marked = new Set(ready.hits.flatMap((hit) => hit.pages));
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <p className="text-xs font-semibold tracking-[0.16em] text-[var(--seal)] uppercase">Texto editable</p>
-        <h1 className="mt-2 font-serif text-4xl text-[var(--ink)]">Resolución {ready.id}</h1>
+        <p className="text-xs font-semibold tracking-[0.16em] text-[var(--seal)] uppercase">RTF editable</p>
+        <h1 className="mt-2 font-serif text-4xl text-[var(--ink)]">EXPEDIENTE: {ready.id}</h1>
         <p className="mt-3 text-base leading-7 text-[var(--muted)]">
           Usa Control+F o Buscar en esta página. Puedes corregir el texto y descargarlo.
         </p>
@@ -111,15 +119,32 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
       </main>
     );
   } catch (error) {
+    if (gate.counted && viewer) await releaseRtf(viewer.id, parsed.request.id);
     const message = error instanceof Error ? error.message : "No pude leer las páginas del PDF. Ábrelo en el MEF.";
     return <Notice message={message} />;
   }
 }
 
-function Notice({ message }: { message: string }) {
+function Notice({
+  message,
+  actionHref,
+  actionLabel,
+}: {
+  message: string;
+  actionHref?: string;
+  actionLabel?: string;
+}) {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8">
       <p className="rounded-2xl border border-[#e4b2aa] bg-[#fbf1ee] px-4 py-3 text-sm text-[#6d241c]">{message}</p>
+      {actionHref && actionLabel ? (
+        <p className="mt-3 text-sm">
+          <a href={actionHref}>{actionLabel}</a>
+        </p>
+      ) : null}
+      <p className="mt-3 text-sm">
+        <a href="/">Volver a la búsqueda</a>
+      </p>
     </main>
   );
 }
