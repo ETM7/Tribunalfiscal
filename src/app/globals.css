@@ -2094,6 +2094,89 @@ section.bloque {
   margin: 0;
 }
 
+.ciclo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-top: 1.4rem;
+}
+
+.ciclo button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--tinta);
+  border-radius: 999px;
+  padding: 0.45rem 0.85rem;
+  font: 600 0.92rem/1 var(--sans);
+  cursor: pointer;
+}
+
+.ciclo button[aria-pressed="true"] {
+  background: #fff;
+  border-color: #ddd4c6;
+  box-shadow: 0 1px 2px rgba(28, 25, 21, 0.05);
+}
+
+.ciclo .promo {
+  background: var(--sello-claro);
+  color: var(--sello);
+  border-radius: 999px;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.equiv {
+  min-height: 1.15rem;
+  margin: 0.2rem 0 0;
+  color: var(--sello);
+  font-size: 0.88rem;
+}
+
+.monto .n-largo {
+  font-size: 2.15rem;
+}
+
+.edu {
+  margin-top: 1.15rem;
+  border: 1px dashed #d9d0c3;
+  border-radius: 0.85rem;
+  padding: 0.95rem 1.15rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.edu p {
+  margin: 0;
+  max-width: none;
+  color: var(--tinta);
+}
+
+.edu form {
+  margin: 0;
+}
+
+.edu-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--sello);
+  font: 600 0.95rem var(--sans);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.edu-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .planes {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -2402,6 +2485,11 @@ table.comp {
   .planes,
   .quienes {
     grid-template-columns: 1fr;
+  }
+
+  .edu {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .hero {

@@ -54,7 +54,7 @@ export function AdminPeople({ users }: { users: PublicUser[] }) {
               </div>
               {account.pendingPlan ? (
                 <div className="pide">
-                  Pidió {PLANS[account.pendingPlan].name} · {priceLabel(PLANS[account.pendingPlan])}
+                  Pidió {PLANS[account.pendingPlan].name} · {priceLabel(PLANS[account.pendingPlan], account.pendingCycle ?? "mensual")}
                 </div>
               ) : null}
             </div>

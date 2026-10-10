@@ -10,6 +10,7 @@ import {
   consumeRtf,
   createUser,
   ensureAdmin,
+  getUser,
   loginUser,
   registerUser,
   requestPlan,
@@ -17,7 +18,7 @@ import {
 } from "./accounts";
 
 describe("cuentas", { concurrency: false }, () => {
-  test("el alta entra en Junior y no abre el RTF", async () => {
+  test("el alta entra en Junior y abre hasta tres lecturas", async () => {
     const dir = await sandbox();
     try {
       const created = await registerUser({
@@ -29,7 +30,11 @@ describe("cuentas", { concurrency: false }, () => {
       if (!created.ok) return;
       assert.equal(created.value.plan, "junior");
       assert.equal(created.value.email, "ana@ejemplo.pe");
-      const blocked = await consumeRtf(created.value.id, "2019_5_11125");
+      for (let index = 0; index < 3; index += 1) {
+        const opened = await consumeRtf(created.value.id, `2019_5_${index}`);
+        assert.equal(opened.ok, true);
+      }
+      const blocked = await consumeRtf(created.value.id, "2019_5_extra");
       assert.equal(blocked.ok, false);
       const again = await registerUser({ email: "ana@ejemplo.pe", name: "Ana Pérez", password: "clave-junior" });
       assert.equal(again.ok, false);
@@ -38,7 +43,7 @@ describe("cuentas", { concurrency: false }, () => {
     }
   });
 
-  test("Senior permite 20 resoluciones distintas al mes y el mes siguiente empieza de cero", async () => {
+  test("Senior permite 30 resoluciones distintas al mes y el mes siguiente empieza de cero", async () => {
     const dir = await sandbox();
     try {
       const created = await registerUser({ email: "senior@ejemplo.pe", name: "Luis Senior", password: "clave-senior" });
@@ -47,7 +52,7 @@ describe("cuentas", { concurrency: false }, () => {
       const january = new Date("2026-01-15T18:00:00Z");
       const assigned = await assignPlan(created.value.id, "senior", january);
       assert.equal(assigned.ok, true);
-      for (let index = 0; index < 20; index += 1) {
+      for (let index = 0; index < 30; index += 1) {
         const opened = await consumeRtf(created.value.id, `2019_5_${index}`, january);
         assert.equal(opened.ok, true);
       }
@@ -58,7 +63,7 @@ describe("cuentas", { concurrency: false }, () => {
       assert.equal(blocked.ok, false);
       const february = await consumeRtf(created.value.id, "2019_5_extra", new Date("2026-02-15T18:00:00Z"));
       assert.equal(february.ok, true);
-      if (february.ok) assert.equal(february.remaining, 19);
+      if (february.ok) assert.equal(february.remaining, 29);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -70,8 +75,11 @@ describe("cuentas", { concurrency: false }, () => {
       const created = await registerUser({ email: "pago@ejemplo.pe", name: "Nuria Pago", password: "clave-pago-1" });
       assert.equal(created.ok, true);
       if (!created.ok) return;
-      const asked = await requestPlan(created.value.id, "gerente");
+      const asked = await requestPlan(created.value.id, "gerente", "anual");
       assert.equal(asked.ok, true);
+      const pending = await getUser(created.value.id);
+      assert.equal(pending?.pendingPlan, "gerente");
+      assert.equal(pending?.pendingCycle, "anual");
       const active = await confirmPendingPlan(created.value.id);
       assert.equal(active.ok, true);
       if (!active.ok) return;

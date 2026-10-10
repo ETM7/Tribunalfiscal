@@ -1,7 +1,7 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { isPlanId, limaMonth, PLANS, type PlanId } from "./plans";
+import { isBillingCycle, isPlanId, limaMonth, PLANS, type BillingCycle, type PlanId } from "./plans";
 
 const SCRYPT_N = 16384;
 
@@ -24,6 +24,7 @@ type StoredUser = {
   role: Role;
   plan: PlanId;
   pendingPlan: PlanId | null;
+  pendingCycle?: BillingCycle | null;
   usageMonth: string;
   openedIds: string[];
   createdAt: string;
@@ -38,6 +39,7 @@ export type PublicUser = {
   role: Role;
   plan: PlanId;
   pendingPlan: PlanId | null;
+  pendingCycle: BillingCycle | null;
   usageMonth: string;
   rtfOpens: number;
   openedIds: string[];
@@ -125,6 +127,7 @@ function toPublic(user: StoredUser, now = new Date()): PublicUser {
     role: user.role,
     plan: user.plan,
     pendingPlan: user.pendingPlan,
+    pendingCycle: user.pendingPlan ? (user.pendingCycle === "anual" ? "anual" : "mensual") : null,
     usageMonth: month,
     rtfOpens: user.usageMonth === month ? user.openedIds.length : 0,
     openedIds: user.usageMonth === month ? [...user.openedIds] : [],
@@ -184,6 +187,7 @@ function freshUser(input: {
     role: input.role,
     plan: input.plan,
     pendingPlan: null,
+    pendingCycle: null,
     usageMonth: limaMonth(input.now),
     openedIds: [],
     createdAt: input.now.toISOString(),
@@ -301,14 +305,20 @@ export async function ensureAdmin(now = new Date()): Promise<{ created: boolean;
   });
 }
 
-export async function requestPlan(userId: string, plan: string): Promise<AccountResult<PlanId>> {
+export async function requestPlan(
+  userId: string,
+  plan: string,
+  cycle: BillingCycle = "mensual",
+): Promise<AccountResult<PlanId>> {
   if (!isPlanId(plan)) return { ok: false, message: "Ese plan no existe." };
+  const billing = isBillingCycle(cycle) ? cycle : "mensual";
   return withLock(dataDir(), async () => {
     const store = await readStore();
     const user = store.users.find((item) => item.id === userId);
     if (!user) return { ok: false, message: "No encuentro esa cuenta." };
     if (user.plan === plan) return { ok: false, message: "Ese ya es tu plan." };
     user.pendingPlan = plan;
+    user.pendingCycle = PLANS[plan].priceSoles === 0 ? "mensual" : billing;
     await writeStore(store);
     return { ok: true, value: plan };
   });
@@ -322,6 +332,7 @@ export async function assignPlan(userId: string, plan: string, now = new Date())
     if (!user) return { ok: false, message: "No encuentro esa cuenta." };
     user.plan = plan;
     user.pendingPlan = null;
+    user.pendingCycle = null;
     rollMonth(user, now);
     await writeStore(store);
     return { ok: true, value: toPublic(user, now) };
@@ -336,6 +347,7 @@ export async function confirmPendingPlan(userId: string, now = new Date()): Prom
     if (!user.pendingPlan) return { ok: false, message: "No hay un plan pendiente de pago." };
     user.plan = user.pendingPlan;
     user.pendingPlan = null;
+    user.pendingCycle = null;
     rollMonth(user, now);
     await writeStore(store);
     return { ok: true, value: toPublic(user, now) };
@@ -383,7 +395,7 @@ export async function consumeRtf(
   if (!userId) {
     return {
       ok: false,
-      message: "Entra al portal para abrir el RTF editable. El plan Junior permite buscar, sin ese botón.",
+      message: "Entra al portal para abrir el RTF editable. El plan Junior es gratis e incluye 3 lecturas al mes.",
     };
   }
   if (!resolution) return { ok: false, message: "Falta el expediente." };

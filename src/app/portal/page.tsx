@@ -56,7 +56,7 @@ export default async function PortalPage({ searchParams }: PortalProps) {
               </span>
               <p>
                 <strong>
-                  Solicitaste {PLANS[user.pendingPlan].name} ({priceLabel(PLANS[user.pendingPlan])}).
+                  Solicitaste {PLANS[user.pendingPlan].name} ({priceLabel(PLANS[user.pendingPlan], user.pendingCycle ?? "mensual")}).
                 </strong>{" "}
                 Sigue activo {plan.name} hasta que administración confirme el pago.
               </p>
@@ -91,7 +91,7 @@ export default async function PortalPage({ searchParams }: PortalProps) {
           </form>
           <form action={registerAction} className="panel">
             <h2 className="t2">Crear cuenta Junior</h2>
-            <p className="sub">Es gratis. Puedes buscar enseguida. El RTF editable se abre desde Senior.</p>
+            <p className="sub">Es gratis. Puedes buscar enseguida e incluye 3 lecturas del RTF editable al mes.</p>
             <div className="form-grid">
               <div className="campo">
                 <label htmlFor="reg-nombre">Nombre</label>

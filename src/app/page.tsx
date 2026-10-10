@@ -120,7 +120,7 @@ export default function Home() {
                 </a>
               </div>
             </div>
-            <p className="pie">La cuenta Junior busca sin límite. El botón Abrir RTF editable no está en ese plan.</p>
+            <p className="pie">La cuenta Junior busca sin límite e incluye 3 lecturas del RTF editable al mes.</p>
           </div>
           <div>
             <span className="rotulo">Cada resultado</span>
@@ -135,10 +135,10 @@ export default function Home() {
               </div>
               <div className="estado on">
                 <h5>Junior, gratis</h5>
-                <p>Búsquedas sin límite, sin el botón Abrir RTF editable.</p>
+                <p>Búsquedas sin límite y 3 lecturas del RTF editable al mes.</p>
               </div>
               <div className="estado">
-                <h5>Senior, Gerente o Socio</h5>
+                <h5>Senior, Gerente o Estudio</h5>
                 <p>Lees, buscas dentro y descargas editable según el cupo de tu plan.</p>
               </div>
             </div>
