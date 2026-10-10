@@ -30,6 +30,9 @@ describe("perfil", () => {
     const card = parseCardInput("mastercard", "7703", "03/28");
     assert.equal(card.ok, true);
     if (card.ok) assert.equal(card.value.last4, "7703");
+    const longYear = parseCardInput("visa", "4821", "08/2029");
+    assert.equal(longYear.ok, true);
+    if (longYear.ok) assert.equal(longYear.value.expiry, "08/29");
   });
 
   test("el estado de cuenta sale como PDF", () => {

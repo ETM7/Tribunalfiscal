@@ -236,11 +236,12 @@ export function parseCardInput(
   if (!brand) return { ok: false, message: "Elige Visa o Mastercard." };
   const last4 = last4Raw.replace(/\D/g, "");
   if (!/^\d{4}$/.test(last4)) return { ok: false, message: "Escribe solo los últimos 4 dígitos." };
-  const expiry = expiryRaw.trim();
-  const match = /^(\d{2})\/(\d{2})$/.exec(expiry);
+  const expiry = expiryRaw.trim().replace(/[.\-\s]/g, "/").replace(/\/+/g, "/");
+  const match = /^(\d{1,2})\/(\d{2}|\d{4})$/.exec(expiry);
   const month = match ? Number(match[1]) : 0;
   if (!match || month < 1 || month > 12) return { ok: false, message: "El vencimiento va como 08/29." };
-  return { ok: true, value: { brand, last4, expiry } };
+  const year = match[2].slice(-2);
+  return { ok: true, value: { brand, last4, expiry: `${String(month).padStart(2, "0")}/${year}` } };
 }
 
 export function brandLabel(brand: string): string {
