@@ -701,6 +701,88 @@ a.btn-primario {
   margin: 0 0 0.8rem;
 }
 
+.busca-res {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.busca-res h2 {
+  margin: 0;
+}
+
+.busca-res .fila,
+.busca-res .pasos {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.busca-res .fila .inp {
+  flex: 1;
+  min-width: 0;
+}
+
+.ir-redondo,
+.paso-redondo {
+  flex: none;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ir-redondo {
+  border: 0;
+  background: var(--tinta);
+  color: #fff;
+  font: 600 0.82rem var(--sans);
+}
+
+.paso-redondo {
+  background: #fff;
+  border: 1px solid var(--linea);
+  color: var(--tinta);
+}
+
+.paso-redondo svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.paso-redondo:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.busca-res .nav-res {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.busca-res .cuenta-res {
+  margin: 0;
+  color: var(--sec);
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+::highlight(rtf-hit) {
+  background-color: #ffe566;
+  color: #1c1915;
+}
+
+::highlight(rtf-current) {
+  background-color: #f0b429;
+  color: #1c1915;
+}
+
 .criterios {
   list-style: none;
   display: grid;

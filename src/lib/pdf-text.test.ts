@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildEditableHtml, buildPdfTranscript, foldForSearch, locateCriteria, pagesFromTextLayer, searchTerms, splitHighlighted, textLayerIsUsable } from "./pdf-text";
+import { buildEditableHtml, buildPdfTranscript, foldForSearch, locateCriteria, pagesFromTextLayer, phraseSpans, searchTerms, splitHighlighted, textLayerIsUsable } from "./pdf-text";
 
 test("la frase admite un número entre Decisión y 578", () => {
   const pages = [
@@ -67,6 +67,16 @@ test("el html editable escapa el texto y deja Buscar en el navegador", () => {
   assert.equal(html.includes("Decisión 578 <script>"), false);
   assert.match(html, /<mark>Decisión<\/mark> <mark>578<\/mark> &lt;script&gt;/);
   assert.equal(html.includes("<mark>script</mark>"), false);
+});
+
+test("buscar en la resolución encuentra la frase aunque cambie la tilde", () => {
+  const text = "la Decisión 578, y otra vez la DECISIÓN  578. No cuenta indecision ni Decisión N° 100.";
+  const spans = phraseSpans(text, "decisión 578");
+  assert.deepEqual(
+    spans.map((span) => text.slice(span.start, span.end)),
+    ["Decisión 578", "DECISIÓN  578"]
+  );
+  assert.deepEqual(phraseSpans(text, "   "), []);
 });
 
 test("el resaltado amarillo sigue la palabra aunque cambie la tilde y omite no", () => {

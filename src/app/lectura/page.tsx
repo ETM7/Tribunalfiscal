@@ -1,4 +1,5 @@
 import { EditableFileActions } from "@/components/editable-file";
+import { ResolutionFinder } from "@/components/resolution-finder";
 import { consumeRtf, releaseRtf } from "@/lib/accounts";
 import { currentUser } from "@/lib/session";
 import { searchTerms, splitHighlighted, type CriterionHit } from "@/lib/pdf-text";
@@ -46,13 +47,16 @@ export default async function LecturaPage({ searchParams }: { searchParams: Sear
             <h1>
               EXPEDIENTE: <b>{ready.id}</b>
             </h1>
-            <p>Usa Control+F o Buscar en esta página. Puedes corregir el texto y descargarlo.</p>
+            <p>Busca dentro de la resolución, corrige el texto y descárgalo.</p>
           </div>
           <a href="/buscar">← Volver a la búsqueda</a>
         </div>
 
         <div className="lector">
           <aside className="costado">
+            <ResolutionFinder
+              initialQuery={parsed.request.exacta || parsed.request.todas || parsed.request.cerca}
+            />
             <div className="panel">
               <h2>Dónde aparece el criterio</h2>
               <Criteria hits={ready.hits} />
