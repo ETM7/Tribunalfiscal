@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { changePassword, loginUser, registerUser, requestPlan } from "@/lib/accounts";
-import { PLANS } from "@/lib/plans";
+import { planRequestNotice, PLANS } from "@/lib/plans";
 import { clearSession, currentUser, startSession } from "@/lib/session";
 
 function portalNotice(message: string): never {
@@ -38,12 +38,7 @@ export async function requestPlanAction(formData: FormData): Promise<void> {
   const planId = String(formData.get("plan") ?? "");
   const result = await requestPlan(user.id, planId);
   if (!result.ok) portalNotice(result.message);
-  const plan = PLANS[result.value];
-  portalNotice(
-    plan.priceSoles === 0
-      ? `Solicitaste volver al plan ${plan.name}. El administrador lo activa.`
-      : `Solicitaste el plan ${plan.name}, S/ ${plan.priceSoles} al mes. El administrador lo activa cuando confirma el pago.`,
-  );
+  portalNotice(planRequestNotice(PLANS[result.value]));
 }
 
 export async function changePasswordAction(formData: FormData): Promise<void> {

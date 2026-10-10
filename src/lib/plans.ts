@@ -21,21 +21,21 @@ export const PLANS: Record<PlanId, Plan> = {
   senior: {
     id: "senior",
     name: "Senior",
-    priceSoles: 49,
+    priceSoles: 39,
     rtfLimit: 20,
     summary: "Búsquedas sin límite y 20 consultas al RTF editable al mes.",
   },
   gerente: {
     id: "gerente",
     name: "Gerente",
-    priceSoles: 99,
+    priceSoles: 89,
     rtfLimit: 100,
     summary: "Búsquedas sin límite y 100 consultas al RTF editable al mes.",
   },
   socio: {
     id: "socio",
     name: "Socio",
-    priceSoles: 300,
+    priceSoles: 249,
     rtfLimit: null,
     summary: "Búsquedas y consultas al RTF editable sin límite.",
   },
@@ -101,4 +101,11 @@ export function describeRtf(
 
 export function priceLabel(plan: Plan): string {
   return plan.priceSoles === 0 ? "Gratis" : `S/ ${plan.priceSoles} al mes`;
+}
+
+export function planRequestNotice(plan: Plan): string {
+  if (plan.priceSoles === 0) {
+    return `Solicitaste volver al plan ${plan.name}. El administrador lo activa.`;
+  }
+  return `Solicitaste el plan ${plan.name}, ${priceLabel(plan)}. El administrador lo activa cuando confirma el pago.`;
 }

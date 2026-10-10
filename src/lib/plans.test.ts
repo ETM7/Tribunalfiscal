@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { describeRtf, limaMonth, PLANS } from "./plans";
+import { describeRtf, limaMonth, planRequestNotice, PLANS, priceLabel } from "./plans";
 
 test("el mes de Lima cambia a las 00:00, cinco horas antes que UTC", () => {
   assert.equal(limaMonth(new Date("2026-01-01T04:30:00Z")), "2025-12");
@@ -10,12 +10,20 @@ test("el mes de Lima cambia a las 00:00, cinco horas antes que UTC", () => {
 test("los precios y los cupos del RTF son los del plan", () => {
   assert.equal(PLANS.junior.priceSoles, 0);
   assert.equal(PLANS.junior.rtfLimit, 0);
-  assert.equal(PLANS.senior.priceSoles, 49);
+  assert.equal(PLANS.senior.priceSoles, 39);
   assert.equal(PLANS.senior.rtfLimit, 20);
-  assert.equal(PLANS.gerente.priceSoles, 99);
+  assert.equal(PLANS.gerente.priceSoles, 89);
   assert.equal(PLANS.gerente.rtfLimit, 100);
-  assert.equal(PLANS.socio.priceSoles, 300);
+  assert.equal(PLANS.socio.priceSoles, 249);
   assert.equal(PLANS.socio.rtfLimit, null);
+  assert.equal(priceLabel(PLANS.junior), "Gratis");
+  assert.equal(priceLabel(PLANS.senior), "S/ 39 al mes");
+  assert.equal(priceLabel(PLANS.gerente), "S/ 89 al mes");
+  assert.equal(priceLabel(PLANS.socio), "S/ 249 al mes");
+  assert.match(planRequestNotice(PLANS.senior), /S\/ 39/);
+  assert.match(planRequestNotice(PLANS.gerente), /S\/ 89/);
+  assert.match(planRequestNotice(PLANS.socio), /S\/ 249/);
+  assert.doesNotMatch(planRequestNotice(PLANS.senior), /49|99|300/);
 });
 
 test("sin sesión y en Junior el RTF editable queda cerrado", () => {
