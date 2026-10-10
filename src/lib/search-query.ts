@@ -9,6 +9,27 @@ const PDF_ROOT =
 
 const DATE_RE = /^(0[1-9]|[12]\d|3[01])\/(0[1-9]|1[0-2])\/(\d{4})$/;
 const FIELD_MAX = 200;
+/** Año, sala (dígitos o letra, como 10 o Q) y número. El MEF a veces antepone una barra. */
+const EXPEDIENTE_RE = /^\/?\d{4}_[A-Za-z0-9]+_\d+$/;
+const EXPEDIENTE_ID_RE = /^\d{4}_[A-Za-z0-9]+_\d+$/;
+const PDF_PATH_RE = /^\d{4}\/[A-Za-z0-9]+\/[^"'<>\\]+\.pdf$/i;
+const SUMILLA_VALOR_RE = /^[A-Za-z0-9]+$/;
+
+export function isExpedienteRef(rawId: string): boolean {
+  return EXPEDIENTE_RE.test(rawId);
+}
+
+export function isExpedienteId(id: string): boolean {
+  return EXPEDIENTE_ID_RE.test(id);
+}
+
+export function isOfficialPdfPath(pdfPath: string): boolean {
+  return PDF_PATH_RE.test(pdfPath) && !pdfPath.includes("..");
+}
+
+export function isSumillaValor(valor: string): boolean {
+  return SUMILLA_VALOR_RE.test(valor);
+}
 
 export type Alcance = "sumilla" | "completo";
 
@@ -154,13 +175,12 @@ export function buildSearchUrl(query: SearchQuery, count: number): string {
 }
 
 export function pdfFileUrl(pdfPath: string): string | null {
-  if (!/^\d{4}\/\d{1,2}\/[^"'<>\\]+\.pdf$/i.test(pdfPath)) return null;
+  if (!isOfficialPdfPath(pdfPath)) return null;
   return `${PDF_ROOT}${pdfPath}`;
 }
 
 export function fichaUrl(rawId: string, pdfPath: string): string | null {
-  if (!/^\/?\d{4}_\d+_\d+$/.test(rawId)) return null;
-  if (!/^\d{4}\/\d{1,2}\/[^"'<>\\]+\.pdf$/i.test(pdfPath)) return null;
+  if (!isExpedienteRef(rawId) || !isOfficialPdfPath(pdfPath)) return null;
   const fullpath = `${PDF_ROOT}${pdfPath}|${rawId}`;
   const url = new URL("/ServiciosTF/Descargas.htm", OFFICIAL_ORIGIN);
   url.searchParams.set("fullpath", fullpath);
@@ -168,7 +188,7 @@ export function fichaUrl(rawId: string, pdfPath: string): string | null {
 }
 
 export function sumillaPageUrl(valor: string): string | null {
-  if (!/^\d+$/.test(valor)) return null;
+  if (!isSumillaValor(valor)) return null;
   const url = new URL("/ServiciosTF/Sumilla.htm", OFFICIAL_ORIGIN);
   url.searchParams.set("valor", valor);
   return url.toString();

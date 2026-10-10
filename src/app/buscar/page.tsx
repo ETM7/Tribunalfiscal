@@ -35,7 +35,7 @@ async function searchPhrase(phrase: string): Promise<ActionState> {
   const form = new FormData();
   form.set("exacta", phrase);
   form.set("paso", "buscar");
-  form.set("alcance", "sumilla");
+  form.set("alcance", "completo");
   const parsed = parseSearchForm(form);
   if (!parsed.ok) {
     return {

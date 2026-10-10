@@ -1,4 +1,5 @@
 import * as cheerio from "cheerio";
+import { isExpedienteRef, isOfficialPdfPath, isSumillaValor } from "./search-query";
 
 const PAGE_ROWS = 5;
 
@@ -95,9 +96,9 @@ function pairRows(html: string): ParsedRow[] | null {
     const pdfPath = pending.pdfPath;
     const sumillaValor = match[3] ?? "";
     pending = null;
-    if (!/^\/?\d{4}_\d+_\d+$/.test(rawId)) return null;
-    if (!/^\d{4}\/\d{1,2}\/[^"'<>\\]+\.pdf$/i.test(pdfPath)) return null;
-    if (!/^\d+$/.test(sumillaValor)) return null;
+    if (!isExpedienteRef(rawId) || !isOfficialPdfPath(pdfPath) || !isSumillaValor(sumillaValor)) {
+      return null;
+    }
     rows.push({
       rawId,
       pdfPath,

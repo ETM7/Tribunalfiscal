@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildSearchUrl, fichaUrl, nextOffset, parseSearchForm } from "./search-query";
+import { buildSearchUrl, fichaUrl, nextOffset, parseSearchForm, pdfFileUrl, sumillaPageUrl } from "./search-query";
 
 function data(fields: Record<string, string>) {
   const form = new FormData();
@@ -60,6 +60,22 @@ test("un carácter fuera del formulario oficial no se envía", () => {
 test("la exclusión sola no sale hacia el MEF", () => {
   const parsed = parseSearchForm(data({ sin: "multa" }));
   assert.equal(parsed.ok, false);
+});
+
+test("la sala con letra conserva ficha, PDF y sumilla", () => {
+  const ficha = fichaUrl("2025_Q_04131", "2025/Q/2025_Q_04131.pdf");
+  assert.ok(ficha);
+  assert.match(new URL(ficha!).searchParams.get("fullpath") || "", /2025\/Q\/2025_Q_04131\.pdf\|2025_Q_04131$/);
+  assert.equal(
+    pdfFileUrl("2025/Q/2025_Q_04131.pdf"),
+    "http://www.mef.gob.pe/contenidos/tribu_fisc/Tribunal_Fiscal/PDFS/2025/Q/2025_Q_04131.pdf"
+  );
+  assert.equal(
+    sumillaPageUrl("2025Q04131"),
+    "https://apps4.mineco.gob.pe/ServiciosTF/Sumilla.htm?valor=2025Q04131"
+  );
+  assert.equal(pdfFileUrl("2025/../2025_Q_04131.pdf"), null);
+  assert.equal(fichaUrl("nota", "2025/Q/2025_Q_04131.pdf"), null);
 });
 
 test("el enlace de ficha apunta a Descargas del MEF", () => {

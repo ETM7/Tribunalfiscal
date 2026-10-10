@@ -111,7 +111,7 @@ export function SearchApp({
   const [sin, setSin] = useState("");
   const [cerca, setCerca] = useState("");
   const [max, setMax] = useState("20");
-  const [alcance, setAlcance] = useState<"sumilla" | "completo">("sumilla");
+  const [alcance, setAlcance] = useState<"sumilla" | "completo">(initialState.query?.alcance || "completo");
   const [filtrarFecha, setFiltrarFecha] = useState(false);
   const [fechaBegin, setFechaBegin] = useState("01/01/1964");
   const [fechaHasta, setFechaHasta] = useState(todayInLima);
@@ -427,7 +427,11 @@ function Results({
       ) : null}
 
       {result.results.length === 0 ? (
-        <p className="f-meta">No hubo resoluciones con ese criterio.</p>
+        <p className="f-meta">
+          {query.alcance === "sumilla"
+            ? "No hay resoluciones con ese criterio en la sumilla. Prueba con menos palabras o cambia a Texto completo."
+            : "No hay resoluciones con ese criterio. Prueba con menos palabras."}
+        </p>
       ) : (
         <div className="lista-fichas">
           {result.results.map((item) => (

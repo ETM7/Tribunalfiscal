@@ -1,5 +1,5 @@
 import { buildEditableHtml, buildPdfTranscript, locateCriteria, readPdfPages, type CriterionHit, type PdfPage } from "@/lib/pdf-text";
-import { pdfFileUrl } from "@/lib/search-query";
+import { isExpedienteId, pdfFileUrl } from "@/lib/search-query";
 
 const MAX_BYTES = 12_000_000;
 const FIELD_MAX = 200;
@@ -76,12 +76,12 @@ export function parseTranscriptRequest(fields: {
   const todas = fields.todas.trim();
   const cerca = fields.cerca.trim();
   const sumillaUrl = fields.sumillaUrl.trim();
-  if (!/^\d{4}_\d+_\d+$/.test(id)) return { ok: false, message: "La resolución no es válida." };
+  if (!isExpedienteId(id)) return { ok: false, message: "La resolución no es válida." };
   if (!pdfFileUrl(pdfPath)) return { ok: false, message: "El PDF indicado no pertenece al buscador del MEF." };
   if ([exacta, todas, cerca].some((field) => field.length > FIELD_MAX)) {
     return { ok: false, message: "El criterio es demasiado largo." };
   }
-  if (sumillaUrl && !/^https:\/\/apps4\.mineco\.gob\.pe\/ServiciosTF\/Sumilla\.htm\?valor=\d+$/.test(sumillaUrl)) {
+  if (sumillaUrl && !/^https:\/\/apps4\.mineco\.gob\.pe\/ServiciosTF\/Sumilla\.htm\?valor=[A-Za-z0-9]+$/.test(sumillaUrl)) {
     return { ok: false, message: "La sumilla indicada no pertenece al MEF." };
   }
   return { ok: true, request: { id, pdfPath, exacta, todas, cerca, sumillaUrl: sumillaUrl || null } };
